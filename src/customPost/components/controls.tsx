@@ -1,6 +1,6 @@
 
 import {Devvit} from "@devvit/public-api";
-import {Area, Coords} from "../snooManager.js";
+import {Area, Coords} from "../pages/snoos/snoosState.js";
 
 export type ControlsProps = {
     pos: Coords;

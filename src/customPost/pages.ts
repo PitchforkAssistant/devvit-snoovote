@@ -1,9 +1,11 @@
-import {HelpPage} from "./pages/help.js";
-import {SnoosPage} from "./pages/snoos.js";
+import {HelpPage} from "./pages/help/helpPage.js";
+import {SnoosPage} from "./pages/snoos/snoosPage.js";
 import {CustomPostState} from "./postState.js";
-import {SnooPageState} from "./snooManager.js";
+import {SnooPageState} from "./pages/snoos/snoosState.js";
+import {ManagerPage} from "./pages/manager/managerPage.js";
+import {ManagerPageState} from "./pages/manager/managerState.js";
 
-export type PageName = "snoos" | "help";
+export type PageName = "snoos" | "help" | "manager";
 
 export type PageList = {
     [key in PageName]: (state: CustomPostState) => JSX.Element;
@@ -12,6 +14,7 @@ export type PageList = {
 export const Pages: PageList = {
     snoos: SnoosPage,
     help: HelpPage,
+    manager: ManagerPage,
 };
 
 export interface PageProps {
@@ -22,6 +25,7 @@ export const Page = ({state}: PageProps) => Pages[state.currentPage](state);
 
 export const PageStateTypes = {
     snoos: SnooPageState,
+    manager: ManagerPageState,
     help: undefined,
 };
 

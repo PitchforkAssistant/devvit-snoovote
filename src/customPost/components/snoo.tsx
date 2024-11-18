@@ -1,5 +1,5 @@
 import {UIDimensions} from "@devvit/protos";
-import {SnoovatarData, WorldBounds} from "../snooManager.js";
+import {SnoovatarData, WorldBounds} from "../pages/snoos/snoosState.js";
 import {Devvit} from "@devvit/public-api";
 import {clamp} from "../../utils/clamp.js";
 
@@ -31,7 +31,7 @@ export const Snoo = (props: SnooProps) => {
                 <vstack gap="none" alignment="center middle">
                     <image url={props.snoo.snoovatar} imageHeight={size} imageWidth={size}/>;
                     <vstack alignment="center" backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full" padding="xsmall" >
-                        <text selectable={false} size="xsmall">&nbsp; {props.snoo.username} &nbsp;</text>
+                        {props.snoo.username ? <text selectable={false} size="xsmall">&nbsp; {props.snoo.username} &nbsp;</text> : <icon name="load" size="xsmall"/>}
                     </vstack>
                 </vstack>
             </hstack>

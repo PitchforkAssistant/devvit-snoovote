@@ -2,13 +2,16 @@ import {Context, useAsync, UseAsyncResult, useState, UseStateResult} from "@devv
 import {PageName, PageStateList} from "./pages.js";
 import {BasicPostData, BasicUserData} from "../utils/basicData.js";
 import {getRandomSnoovatarUrl} from "../utils/snoovatar.js";
-import {SnooPageState} from "./snooManager.js";
+import {SnooPageState} from "./pages/snoos/snoosState.js";
 import {isModerator} from "devvit-helpers";
+import {ManagerPageState} from "./pages/manager/managerState.js";
 
 export class CustomPostState {
     readonly _currentPage: UseStateResult<PageName>;
 
-    readonly _currentUser: UseStateResult<BasicUserData | null>;
+    readonly _currentUserId: UseStateResult<string | null>;
+
+    readonly _currentUser: UseAsyncResult<BasicUserData | null>;
 
     readonly _currentPost: UseAsyncResult<BasicPostData | null>;
 
@@ -19,14 +22,16 @@ export class CustomPostState {
     constructor (public context: Context, startPage: PageName = "snoos") {
         this._currentPage = useState<PageName>(startPage);
 
-        this._currentUser = useState<BasicUserData | null>(async () => {
+        this._currentUserId = useState<string | null>(context.userId ?? null);
+
+        this._currentUser = useAsync<BasicUserData | null>(async () => {
             const user = await context.reddit.getCurrentUser();
             if (user) {
                 const snoovatar = await user.getSnoovatarUrl();
                 return {
                     username: user.username,
                     id: user.id,
-                    snoovatar: snoovatar ?? getRandomSnoovatarUrl(context.assets),
+                    snoovatar: snoovatar ?? getRandomSnoovatarUrl(context.assets, this.currentUserId ?? undefined),
                 };
             }
             return null;
@@ -63,6 +68,7 @@ export class CustomPostState {
         // We need to initialize the page states here, otherwise they'll get reset on every page change
         this.PageStates = {
             snoos: new SnooPageState(this),
+            manager: new ManagerPageState(this),
             help: undefined,
         };
     }
@@ -98,6 +104,13 @@ export class CustomPostState {
     }
 
     get currentUser (): BasicUserData | null {
-        return this._currentUser[0];
+        if (this._currentUser.loading) {
+            return null;
+        }
+        return this._currentUser.data;
+    }
+
+    get currentUserId (): string | null {
+        return this._currentUserId[0];
     }
 }

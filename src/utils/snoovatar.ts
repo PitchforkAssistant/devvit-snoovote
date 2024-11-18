@@ -1,7 +1,7 @@
 import {AssetsClient} from "@devvit/public-api/apis/AssetsClient/AssetsClient.js";
-import {Area, Coords} from "../customPost/snooManager.js";
+import {Area, Coords} from "../customPost/pages/snoos/snoosState.js";
 
-export const defaultSnoovatars = [
+export const randomSnoovatars = [
     "avatars/Avatar_A1.png",
     "avatars/Avatar_Animal_Cat.png",
     "avatars/Avatar_Animal_Corgi.png",
@@ -234,9 +234,24 @@ export const defaultSnoovatars = [
     "avatars/Avatar_Wrestling.png",
 ];
 
-export function getRandomSnoovatarUrl (assets: AssetsClient): string {
-    const randomIndex = Math.floor(Math.random() * defaultSnoovatars.length);
-    return assets.getURL(defaultSnoovatars[randomIndex]);
+/* eslint-disable camelcase */
+export const assignedSnoovatars: Record<string, string> = {
+    t2_qikfu: "avatars/Avatar_PitchforkAssistant.png",
+    t2_4v98f: "avatars/Avatar_Xenc.png",
+    t2_21ralb61: "avatars/Avatar_AnAbsurdlyAngryGoose.png",
+};
+/* eslint-enable camelcase */
+
+export function getBlankSnoovatarUrl (assets: AssetsClient): string {
+    return assets.getURL("avatars/Avatar_Missing.png");
+}
+
+export function getRandomSnoovatarUrl (assets: AssetsClient, userId?: string): string {
+    if (userId && assignedSnoovatars[userId]) {
+        return assets.getURL(assignedSnoovatars[userId]);
+    }
+    const randomIndex = Math.floor(Math.random() * randomSnoovatars.length);
+    return assets.getURL(randomSnoovatars[randomIndex]);
 }
 
 export function getRandomSnooPosition (bounds: Area, stepSize: Coords): Coords {

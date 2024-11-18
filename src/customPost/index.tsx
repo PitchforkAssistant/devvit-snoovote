@@ -20,14 +20,20 @@ export const snooVotePost = Devvit.addCustomPostType({
                         <text>isManager: {state.isManager}</text>
                     </vstack>}
                     <vstack alignment="center top" width="100%" height="100%">
+                        <hstack padding="medium" alignment="center middle" minWidth="100%">
+                            <spacer size="xsmall" grow/>
+                            <vstack backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full" padding="xsmall">
+                                {state.currentPage === "snoos" && <button icon="settings" size="small" onPress={() => state.changePage("manager")}/>}
+                            </vstack>
+                        </hstack>
                         <vstack alignment="center middle" grow width="100%" height="100%">
                             <spacer size="xsmall" grow/>
                         </vstack>
                         <hstack padding="medium" alignment="center middle" minWidth="100%">
                             <spacer size="xsmall" grow/>
-                            <vstack backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full">
-                                {state.currentPage === "snoos" && <button icon="help" appearance="plain" onPress={() => state.changePage("help")}/>}
-                                {state.currentPage === "help" && <button icon="back" appearance="plain" onPress={() => state.changePage("snoos")}/>}
+                            <vstack backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full" padding="xsmall">
+                                {state.currentPage === "snoos" && <button icon="help" size="small" onPress={() => state.changePage("help")}/>}
+                                {state.currentPage !== "snoos" && <button icon="back" size="small" onPress={() => state.changePage("snoos")}/>}
                             </vstack>
                         </hstack>
                     </vstack>

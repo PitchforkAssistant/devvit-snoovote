@@ -1,9 +1,9 @@
 import {Devvit} from "@devvit/public-api";
-import {CustomPostState} from "../postState.js";
-import {Snoo} from "../components/snoo.js";
-import {Controls} from "../components/controls.js";
+import {CustomPostState} from "../../postState.js";
+import {Snoo} from "../../components/snoo.js";
+import {Controls} from "../../components/controls.js";
 import {ChannelStatus} from "@devvit/public-api/types/realtime.js";
-import {SnoovatarData, StepSize, WorldBounds} from "../snooManager.js";
+import {SnoovatarData, StepSize, WorldBounds} from "./snoosState.js";
 
 export const SnoosPage = (state: CustomPostState) => {
     const snooState = state.PageStates?.snoos;
