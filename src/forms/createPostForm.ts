@@ -2,8 +2,6 @@ import {Context, Devvit, Form, FormKey, FormOnSubmitEvent, FormOnSubmitEventHand
 import {DEFAULTS, ERRORS, HELP_TEXTS, LABELS} from "../constants.js";
 import {CustomPostPreview} from "../customPost/components/preview.js";
 
-// If you want to dynamically generate the form, use this:
-// const form: FormFunction = (data: Data) => // return form generated from data;
 const form: Form = {
     fields: [
         {
@@ -30,11 +28,7 @@ const formHandler: FormOnSubmitEventHandler<CreatePostFormSubmitData> = async (e
     // The logic for creating a custom post.
     const subredditName = (await context.reddit.getCurrentSubreddit()).name;
 
-    const title = DEFAULTS.CUSTOM_POST_TITLE;
-    if (!event.values.title) {
-        context.ui.showToast(ERRORS.CUSTOM_POST_TITLE_MISSING);
-        return;
-    }
+    const title = event.values.title ??= DEFAULTS.CUSTOM_POST_TITLE;
 
     try {
         const newPost = await context.reddit.submitPost({

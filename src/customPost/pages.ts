@@ -1,18 +1,17 @@
-import {ButtonsPage} from "./components/buttons.js";
-import {HelpPage} from "./components/help.js";
-import {HomePage} from "./components/home.js";
-import {CustomPostState} from "./state.js";
+import {HelpPage} from "./pages/help.js";
+import {SnoosPage} from "./pages/snoos.js";
+import {CustomPostState} from "./postState.js";
+import {SnooPageState} from "./snooManager.js";
 
-export type PageName = "home" | "help" | "buttons";
+export type PageName = "snoos" | "help";
 
 export type PageList = {
     [key in PageName]: (state: CustomPostState) => JSX.Element;
 };
 
 export const Pages: PageList = {
-    home: HomePage,
+    snoos: SnoosPage,
     help: HelpPage,
-    buttons: ButtonsPage,
 };
 
 export interface PageProps {
@@ -20,3 +19,12 @@ export interface PageProps {
 }
 
 export const Page = ({state}: PageProps) => Pages[state.currentPage](state);
+
+export const PageStateTypes = {
+    snoos: SnooPageState,
+    help: undefined,
+};
+
+export type PageStateList = {
+    [key in PageName]: typeof PageStateTypes[key] extends new (state: CustomPostState) => unknown ? InstanceType<typeof PageStateTypes[key]> : undefined;
+}

@@ -13,10 +13,10 @@ export const LABELS = {
     MEMBER_BUTTON: "Template Action (Member)",
     LOGGED_OUT_BUTTON: "Template Action (Logged Out)",
     GENERAL_BUTTON: "Template Action (Unspecified)",
-    FORM: "Custom Post Form",
-    FORM_ACCEPT: "Submit Custom Post",
+    FORM: "SnooVote Post Form",
+    FORM_ACCEPT: "Submit",
     FORM_CANCEL: "Cancel",
-    CUSTOM_POST_BUTTON: "Create a Custom Post",
+    CUSTOM_POST_BUTTON: "Create a SnooVote Post",
     CUSTOM_POST_TITLE: "Title",
 };
 

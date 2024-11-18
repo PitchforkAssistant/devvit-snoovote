@@ -6,8 +6,9 @@ const onPress = async (event: MenuItemOnPressEvent, context: Context) => {
     context.ui.showForm(createPostForm);
 };
 
-export const customPostButton = Devvit.addMenuItem({
+export const createPostButton = Devvit.addMenuItem({
     location: ["subreddit", "post", "comment"],
     label: LABELS.CUSTOM_POST_BUTTON,
     onPress,
 });
+
