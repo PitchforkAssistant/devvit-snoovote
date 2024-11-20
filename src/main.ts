@@ -14,10 +14,14 @@ Devvit.debug.emitState = true;
 export {devvitAppSettings} from "./settings.js";
 
 // Forms
-export {createPostForm} from "./forms/createPostForm.js";
+export {blankPostForm} from "./forms/blankPostForm.js";
+export {voteInitialForm} from "./forms/voteInitialForm.js";
+export {voteOptionsForm} from "./forms/voteChoicesForm.js";
+export {votePostForm} from "./forms/votePostForm.js";
 
 // Buttons
-export {createPostButton} from "./buttons/createPostButton.js";
+export {blankPostButton} from "./buttons/blankPostButton.js";
+export {votePostButton} from "./buttons/votePostButton.js";
 
 // Custom Post
 export {snooVotePost} from "./customPost/index.js";

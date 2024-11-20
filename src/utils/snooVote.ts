@@ -1,12 +1,13 @@
 import {Devvit, RedisClient} from "@devvit/public-api";
 import {DualColor, isDualColor} from "./dualColor.js";
+import {SnooWorld} from "../customPost/pages/snoos/snoosState.js";
 
 export const votesStoreKey = "snoo:votes";
 export const votesAssociationKey = "snoo:votes:association";
 
 export type SnooImageOptions = {
-    backgroundImage: string;
-    backgroundImageMode: Devvit.Blocks.ImageResizeMode;
+    url: string;
+    mode: Devvit.Blocks.ImageResizeMode;
 }
 
 export type SnooVoteResult = {
@@ -19,10 +20,8 @@ export type SnooVoteChoice = {
     text: string;
     textColor: DualColor;
     backgroundColor: DualColor;
-    nameplateBackgroundColor?: DualColor;
-    nameplateTextColor?: DualColor;
     backgroundImage?: SnooImageOptions;
-    result?: SnooVoteResult;
+    result?: number;
 }
 
 export type SnooVote = {
@@ -32,7 +31,7 @@ export type SnooVote = {
     textColor: DualColor;
     backgroundColor: DualColor;
     choices: SnooVoteChoice[];
-    result: SnooVoteResult;
+    result?: SnooVoteResult;
 }
 
 export function isSnooImageOptions (object: unknown): object is SnooImageOptions {
@@ -40,8 +39,8 @@ export function isSnooImageOptions (object: unknown): object is SnooImageOptions
         return false;
     }
     const snooImageOptions = object as SnooImageOptions;
-    return typeof snooImageOptions.backgroundImage === "string" &&
-           typeof snooImageOptions.backgroundImageMode === "string";
+    return typeof snooImageOptions.url === "string" &&
+           typeof snooImageOptions.mode === "string";
 }
 
 export function isSnooVoteResult (object: unknown): object is SnooVoteResult {
@@ -63,8 +62,6 @@ export function isSnooVoteChoice (object: unknown): object is SnooVoteChoice {
            typeof snooVoteChoice.text === "string" &&
            isDualColor(snooVoteChoice.textColor) &&
            isDualColor(snooVoteChoice.backgroundColor) &&
-           isDualColor(snooVoteChoice.nameplateBackgroundColor) &&
-           isDualColor(snooVoteChoice.nameplateTextColor) &&
            (snooVoteChoice.backgroundImage ? isSnooImageOptions(snooVoteChoice.backgroundImage) : true);
 }
 
@@ -82,8 +79,9 @@ export function isSnooVote (object: unknown): object is SnooVote {
            (snooVote.result ? isSnooVoteResult(snooVote.result) : true);
 }
 
-export async function storeSnooVote (redis: RedisClient, vote: SnooVote): Promise<void> {
-    await redis.hSet(votesStoreKey, {voteId: JSON.stringify(vote)});
+export async function storeSnooVote (redis: RedisClient, authorId: string, vote: SnooVote): Promise<void> {
+    await redis.hSet(votesStoreKey, {[vote.id]: JSON.stringify(vote)});
+    await redis.zAdd(`votes:${authorId}`, {member: vote.id, score: Date.now()});
 }
 
 export async function getPostSnooVoteId (redis: RedisClient, postId: string): Promise<string | null> {
@@ -112,4 +110,18 @@ export async function getPostSnooVote (redis: RedisClient, postId: string): Prom
 
 export async function setPostSnooVote (redis: RedisClient, postId: string, voteId: string): Promise<void> {
     await redis.hSet(votesAssociationKey, {[postId]: voteId});
+}
+
+export async function isVoteOwner (redis: RedisClient, authorId: string, voteId: string): Promise<boolean> {
+    const votes = await redis.zRange(`votes:${authorId}`, 0, -1);
+    for (const vote of votes) {
+        if (vote.member === voteId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+export async function storePersistentSnoos (redis: RedisClient, voteId: string, snoos: SnooWorld): Promise<void> {
+    await redis.set(`snoos:${voteId}`, JSON.stringify(snoos));
 }

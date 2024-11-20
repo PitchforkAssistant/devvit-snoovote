@@ -17,14 +17,17 @@ export const snooVotePost = Devvit.addCustomPostType({
                         <text style="body" color="red">DEBUG MODE</text>
                         <text>pos: {JSON.stringify(state.PageStates.snoos.mySnoovatar?.position)}</text>
                         <text>status: {stringifyChannelStatus(state.PageStates.snoos.status)}</text>
+                        <text>isOwner: {state.PageStates.snoos.isOwner}</text>
                         <text>isManager: {state.isManager}</text>
+                        <text>currentVote: {state.PageStates.snoos.currentVote?.id ?? state.PageStates.snoos._initialVote.loading}</text>
                     </vstack>}
                     <vstack alignment="center top" width="100%" height="100%">
                         <hstack padding="medium" alignment="center middle" minWidth="100%">
                             <spacer size="xsmall" grow/>
+                            {(state.isManager || state.PageStates.snoos.isOwner) && state.currentPage === "snoos" &&
                             <vstack backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full" padding="xsmall">
-                                {state.currentPage === "snoos" && <button icon="settings" size="small" onPress={() => state.changePage("manager")}/>}
-                            </vstack>
+                                <button icon="settings" size="small" onPress={() => state.changePage("manager")}/>
+                            </vstack>}
                         </hstack>
                         <vstack alignment="center middle" grow width="100%" height="100%">
                             <spacer size="xsmall" grow/>

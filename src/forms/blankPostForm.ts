@@ -1,5 +1,4 @@
 import {Context, Devvit, Form, FormKey, FormOnSubmitEvent, FormOnSubmitEventHandler} from "@devvit/public-api";
-import {DEFAULTS, ERRORS, HELP_TEXTS, LABELS} from "../constants.js";
 import {CustomPostPreview} from "../customPost/components/preview.js";
 
 const form: Form = {
@@ -7,20 +6,21 @@ const form: Form = {
         {
             type: "string",
             name: "title",
-            label: LABELS.CUSTOM_POST_TITLE,
-            helpText: HELP_TEXTS.CUSTOM_POST_TITLE,
+            label: "Post Title",
+            helpText: "This will be the title of the post and cannot be changed after submission.",
         },
     ],
-    title: LABELS.FORM,
-    acceptLabel: LABELS.FORM_ACCEPT,
-    cancelLabel: LABELS.FORM_CANCEL,
+    title: "Create Blank Vote Post",
+    description: "Create a vote post without first creating an associated poll. Moderators can edit the active poll of a vote through the post.",
+    acceptLabel: "Submit",
+    cancelLabel: "Cancel",
 };
 
-export type CreatePostFormSubmitData = {
+export type CreatePostBlankFormSubmitData = {
     title?: string;
 }
 
-const formHandler: FormOnSubmitEventHandler<CreatePostFormSubmitData> = async (event: FormOnSubmitEvent<CreatePostFormSubmitData>, context: Context) => {
+const formHandler: FormOnSubmitEventHandler<CreatePostBlankFormSubmitData> = async (event: FormOnSubmitEvent<CreatePostBlankFormSubmitData>, context: Context) => {
     const message = `You submitted the form with values ${JSON.stringify(event.values)}`;
     console.log(message);
     context.ui.showToast(message);
@@ -28,7 +28,7 @@ const formHandler: FormOnSubmitEventHandler<CreatePostFormSubmitData> = async (e
     // The logic for creating a custom post.
     const subredditName = (await context.reddit.getCurrentSubreddit()).name;
 
-    const title = event.values.title ??= DEFAULTS.CUSTOM_POST_TITLE;
+    const title = event.values.title ??= "Custom Post";
 
     try {
         const newPost = await context.reddit.submitPost({
@@ -44,8 +44,8 @@ const formHandler: FormOnSubmitEventHandler<CreatePostFormSubmitData> = async (e
         context.ui.navigateTo(newPost);
     } catch (e) {
         console.error("Error creating custom post", e);
-        context.ui.showToast(ERRORS.CUSTOM_POST_FAILED);
+        context.ui.showToast(`Failed to create custom post: ${String(e)}`);
     }
 };
 
-export const createPostForm: FormKey = Devvit.createForm(form, formHandler);
+export const blankPostForm: FormKey = Devvit.createForm(form, formHandler);

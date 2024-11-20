@@ -1,6 +1,6 @@
-import {Context, UseChannelResult, UseIntervalResult, UseStateResult, useChannel, useInterval, useState} from "@devvit/public-api";
+import {Context, UseAsyncResult, UseChannelResult, UseIntervalResult, UseStateResult, useAsync, useChannel, useInterval, useState} from "@devvit/public-api";
 import {BasicUserData} from "../../../utils/basicData.js";
-import {getPostSnooVote, SnooVote} from "../../../utils/snooVote.js";
+import {getPostSnooVote, isVoteOwner, SnooVote} from "../../../utils/snooVote.js";
 import {ChannelStatus} from "@devvit/public-api/types/realtime.js";
 import {getBlankSnoovatarUrl, getRandomSnooPosition} from "../../../utils/snoovatar.js";
 import {clamp} from "../../../utils/clamp.js";
@@ -23,7 +23,7 @@ export const WorldBounds: Area = {
     max: {x: 100, y: 100, z: 100},
 };
 
-export type SnoovatarData = BasicUserData & {position: Coords, lastUpdate: number};
+export type SnoovatarData = BasicUserData & {position: Coords, lastUpdate: number, persistent: boolean};
 
 export type SnooWorld = {
     [id: string]: SnoovatarData;
@@ -54,9 +54,11 @@ export class SnooPageState {
     readonly _world: UseStateResult<SnooWorld>;
     readonly _sessionId: UseStateResult<string>;
     readonly _currentVote: UseStateResult<SnooVote | null>;
+    readonly _initialVote: UseAsyncResult<SnooVote | null>;
     readonly _channel: UseChannelResult<SnooPagePacket>;
     readonly _heartbeat: UseIntervalResult;
     readonly _purge: UseIntervalResult;
+    readonly _owner: UseAsyncResult<boolean>;
 
     constructor (readonly postState: CustomPostState) {
         this.context = postState.context;
@@ -70,13 +72,16 @@ export class SnooPageState {
                         snoovatar: postState.currentUser?.snoovatar ?? getBlankSnoovatarUrl(this.context.assets),
                         position: getRandomSnooPosition(WorldBounds, StepSize),
                         lastUpdate: Date.now(),
+                        persistent: false,
                     },
                 };
             }
             return {};
         });
 
-        this._currentVote = useState<SnooVote | null>(async () => {
+        this._currentVote = useState<SnooVote | null>(null);
+
+        this._initialVote = useAsync<SnooVote | null>(async () => {
             if (this.context.postId) {
                 return getPostSnooVote(this.context.redis, this.context.postId);
             }
@@ -91,11 +96,35 @@ export class SnooPageState {
             onUnsubscribed: this.onChannelUnsubscribed,
         });
 
+        this._owner = useAsync<boolean>(async () => {
+            if (!this.postState.currentUserId || !this.currentVote?.id) {
+                return false;
+            }
+            return isVoteOwner(this.context.redis, this.postState.currentUserId, this.currentVote.id);
+        }, {depends: [postState.currentUserId, this.currentVote]});
+
         this._channel.subscribe();
 
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
         this._purge = useInterval(this.onPurgeInterval, 60000);
+    }
+
+    set currentVote (vote: SnooVote | null) {
+        this._currentVote[1](vote);
+    }
+
+    get currentVote (): SnooVote | null {
+        // Only set the vote from the async load if it's not already set
+        if (!this._currentVote[0] && !this._initialVote.loading && this._initialVote.data) {
+            this.currentVote = this._initialVote.data;
+            return this._initialVote.data;
+        }
+        return this._currentVote[0];
+    }
+
+    get isOwner (): boolean {
+        return this._owner.data ?? false;
     }
 
     get sessionId (): string {
@@ -116,7 +145,8 @@ export class SnooPageState {
 
     get mySnoovatar (): SnoovatarData | null {
         if (this.postState.currentUser) {
-            if (this.world[this.postState.currentUser.id] && (!this.world[this.postState.currentUser.id].username || !this.world[this.postState.currentUser.id].snoovatar)) {
+            // If the user is missing a username and currentUser has finished loading, update the world
+            if (this.world[this.postState.currentUser.id] && !this.world[this.postState.currentUser.id].username) {
                 this.world = {
                     ...this.world,
                     [this.postState.currentUser.id]: {
@@ -131,9 +161,38 @@ export class SnooPageState {
         return null;
     }
 
-    get snooSize (): number {
-        return this.context.dimensions ? this.context.dimensions.width / 5 : 100;
-    }
+    getVotes = (choiceId: string): number | undefined => {
+        const numChoices = this.currentVote?.choices.length ?? 0;
+        const choiceIndex = this.currentVote?.choices.findIndex(choice => choice.id === choiceId);
+
+        if (!numChoices || choiceIndex === undefined || choiceIndex < 0 || choiceIndex >= numChoices) {
+            return undefined;
+        }
+
+        if (typeof this.currentVote?.choices[choiceIndex].result === "number") {
+            return this.currentVote?.choices[choiceIndex].result;
+        }
+
+        const positions = Object.values(this.world).map(snoovatar => snoovatar.position);
+        if (numChoices === 2 || numChoices === 3) {
+            const choiceMin = choiceIndex * WorldBounds.max.x / numChoices;
+            const choiceMax = (choiceIndex + 1) * WorldBounds.max.x / numChoices;
+            return positions.filter(pos => pos.x >= choiceMin && pos.x < choiceMax).length;
+        }
+
+        if (numChoices === 4) {
+            const choiceMin = {
+                x: [1, 3].includes(choiceIndex) ? WorldBounds.min.x : WorldBounds.max.x / 2,
+                y: choiceIndex < 2 ? WorldBounds.min.y : WorldBounds.max.y / 2,
+            };
+            const choiceMax = {
+                x: [1, 3].includes(choiceIndex) ? WorldBounds.max.x / 2 : WorldBounds.max.x,
+                y: choiceIndex < 2 ? WorldBounds.max.y / 2 : WorldBounds.max.y,
+            };
+
+            return positions.filter(pos => pos.x >= choiceMin.x && pos.x < choiceMax.x && pos.y >= choiceMin.y && pos.y < choiceMax.y).length;
+        }
+    };
 
     sendToChannel = async (message: SnooPagePacket) => {
         if (this._channel.status === ChannelStatus.Connected) {
@@ -254,14 +313,11 @@ export class SnooPageState {
     onPurgeInterval = async () => {
         const prunedWorld: SnooWorld = {};
         for (const [id, snoovatar] of Object.entries(this.world)) {
-            if (Date.now() - snoovatar.lastUpdate > 60000 && snoovatar.id !== this.mySnoovatar?.id) {
+            if (Date.now() - snoovatar.lastUpdate > 60000 && snoovatar.id !== this.mySnoovatar?.id || snoovatar.persistent) {
                 continue;
             }
             prunedWorld[id] = snoovatar;
         }
-        // Avoid setting the state if the world hasn't changed
-        if (Object.keys(prunedWorld).length !== Object.keys(this.world).length) {
-            this.world = prunedWorld;
-        }
+        this.world = prunedWorld;
     };
 }

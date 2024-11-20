@@ -16,3 +16,7 @@ export function isDualColor (object: unknown): object is DualColor {
 export function getDualColor (color: DualColor, theme: string): Devvit.Blocks.ColorString {
     return theme === "dark" ? color.dark : color.light;
 }
+
+export function isHexColor (color: string): boolean {
+    return /^#[0-9A-F]{3}([0-9A-F]{3}|[0-9A-F]{5})?$/i.test(color);
+}

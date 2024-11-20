@@ -1,14 +1,14 @@
 import {Context, Devvit, MenuItemOnPressEvent} from "@devvit/public-api";
-import {LABELS} from "../constants.js";
-import {createPostForm} from "../main.js";
+import {blankPostForm} from "../main.js";
 
 const onPress = async (event: MenuItemOnPressEvent, context: Context) => {
-    context.ui.showForm(createPostForm);
+    context.ui.showForm(blankPostForm);
 };
 
-export const createPostButton = Devvit.addMenuItem({
+export const blankPostButton = Devvit.addMenuItem({
     location: ["subreddit", "post", "comment"],
-    label: LABELS.CUSTOM_POST_BUTTON,
+    forUserType: "moderator",
+    label: "Create Blank Vote Post",
     onPress,
 });
 
