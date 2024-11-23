@@ -14,10 +14,10 @@ export const VoteBackground = ({vote, uiDims}: BackgroundProps) => (
             <hstack width="100%" height="100%" grow>{vote.choices.map(choice => <zstack width={`${100 / vote.choices.length}%`} height="100%" grow><ChoiceBackground choice={choice} uiDims={uiDims}/></zstack>)}</hstack>
         }
         {vote.choices.length === 4 &&
-            <hstack width="100%" height="100%">
-                <vstack width="100%" height="50%">{vote.choices.slice(0, 2).map(choice => <ChoiceBackground choice={choice} uiDims={uiDims}/>)}</vstack>
-                <vstack width="100%" height="50%">{vote.choices.slice(2, 4).map(choice => <ChoiceBackground choice={choice} uiDims={uiDims}/>)}</vstack>
-            </hstack>
+            <vstack width="100%" height="100%">
+                <hstack width="100%" height="50%">{vote.choices.slice(0, 2).map(choice => <ChoiceBackground choice={choice} uiDims={uiDims}/>)}</hstack>
+                <hstack width="100%" height="50%">{vote.choices.slice(2, 4).map(choice => <ChoiceBackground choice={choice} uiDims={uiDims}/>)}</hstack>
+            </vstack>
         }
     </zstack>
 );

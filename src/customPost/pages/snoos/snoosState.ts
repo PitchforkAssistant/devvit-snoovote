@@ -59,6 +59,7 @@ export class SnooPageState {
     readonly _heartbeat: UseIntervalResult;
     readonly _purge: UseIntervalResult;
     readonly _owner: UseAsyncResult<boolean>;
+    readonly _saveTime: UseAsyncResult<number>;
 
     constructor (readonly postState: CustomPostState) {
         this.context = postState.context;
@@ -102,6 +103,11 @@ export class SnooPageState {
             }
             return isVoteOwner(this.context.redis, this.postState.currentUserId, this.currentVote.id);
         }, {depends: [postState.currentUserId, this.currentVote]});
+
+        this._saveTime = useAsync<number>(
+            async () => Date.now(), // TODO: Save position to Redis
+            {depends: [this.world]}
+        );
 
         this._channel.subscribe();
 
@@ -182,11 +188,11 @@ export class SnooPageState {
 
         if (numChoices === 4) {
             const choiceMin = {
-                x: [1, 3].includes(choiceIndex) ? WorldBounds.min.x : WorldBounds.max.x / 2,
+                x: choiceIndex % 2 === 0 ? WorldBounds.min.x : WorldBounds.max.x / 2,
                 y: choiceIndex < 2 ? WorldBounds.min.y : WorldBounds.max.y / 2,
             };
             const choiceMax = {
-                x: [1, 3].includes(choiceIndex) ? WorldBounds.max.x / 2 : WorldBounds.max.x,
+                x: choiceIndex % 2 === 0 ? WorldBounds.max.x / 2 : WorldBounds.max.x,
                 y: choiceIndex < 2 ? WorldBounds.max.y / 2 : WorldBounds.max.y,
             };
 
