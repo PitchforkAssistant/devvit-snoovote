@@ -1,5 +1,32 @@
 import {AssetsClient} from "@devvit/public-api/apis/AssetsClient/AssetsClient.js";
-import {Area, Coords} from "../customPost/pages/snoos/snoosState.js";
+import {Area, Coords, isCoords} from "./coords.js";
+import {BasicUserData} from "./basicData.js";
+
+export type SnoovatarData = BasicUserData & {position: Coords, lastUpdate: number};
+
+export function isSnoovatarData (object: unknown): object is SnoovatarData {
+    if (!object || typeof object !== "object") {
+        return false;
+    }
+    const snoovatarData = object as SnoovatarData;
+    return typeof snoovatarData.position === "object" &&
+           isCoords(snoovatarData.position) &&
+           typeof snoovatarData.lastUpdate === "number";
+}
+
+export function compareSnoos (a: SnoovatarData, b: SnoovatarData, myId?: string) {
+    if (a.position.z !== b.position.z) {
+        return a.position.z - b.position.z;
+    }
+    if (a.id === myId) {
+        return 1;
+    }
+    if (b.id === myId) {
+        return -1;
+    }
+
+    return a.lastUpdate - b.lastUpdate;
+}
 
 export const randomSnoovatars = [
     "avatars/Avatar_A1.png",

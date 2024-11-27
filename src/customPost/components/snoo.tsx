@@ -1,7 +1,8 @@
 import {UIDimensions} from "@devvit/protos";
-import {SnoovatarData, WorldBounds} from "../pages/snoos/snoosState.js";
+import {WorldBounds} from "../pages/snoos/snoosState.js";
 import {Devvit} from "@devvit/public-api";
 import {clamp} from "../../utils/clamp.js";
+import {SnoovatarData} from "../../utils/snoovatar.js";
 
 export type SnooProps = {
     snoo: SnoovatarData;
@@ -20,7 +21,7 @@ export const Snoo = (props: SnooProps) => {
             ? `${props.snoo.position.x / WorldBounds.max.x * (props.uiDims.width - size)}px`
             : `${clamp(props.snoo.position.x - 20, 0, 100)}%`;
     return (
-        <vstack alignment="top start" height="100%" width="100%" maxHeight="100%" grow>
+        <vstack key={props.snoo.id} alignment="top start" height="100%" width="100%" maxHeight="100%" grow>
             <vstack alignment="top start" height={topOffset}>
                 <spacer size="xsmall" grow/>
             </vstack>

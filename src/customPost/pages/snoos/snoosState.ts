@@ -1,21 +1,11 @@
 import {Context, UseAsyncResult, UseChannelResult, UseIntervalResult, UseStateResult, useAsync, useChannel, useInterval, useState} from "@devvit/public-api";
-import {BasicUserData} from "../../../utils/basicData.js";
 import {getPostSnooVote, isVoteOwner, SnooVote} from "../../../utils/snooVote.js";
 import {ChannelStatus} from "@devvit/public-api/types/realtime.js";
-import {getBlankSnoovatarUrl, getRandomSnooPosition} from "../../../utils/snoovatar.js";
+import {SnoovatarData, compareSnoos, getBlankSnoovatarUrl, getRandomSnooPosition} from "../../../utils/snoovatar.js";
 import {clamp} from "../../../utils/clamp.js";
 import {CustomPostState} from "../../postState.js";
-
-export type Coords = {
-    x: number;
-    y: number;
-    z: number;
-};
-
-export type Area = {
-    min: Coords;
-    max: Coords;
-}
+import {Coords, Area} from "../../../utils/coords.js";
+import {getPersistentSnoos, SnooWorld, storePersistentSnoo} from "../../../utils/snooWorld.js";
 
 export const StepSize: Coords = {x: 5, y: 5, z: 5};
 export const WorldBounds: Area = {
@@ -23,10 +13,8 @@ export const WorldBounds: Area = {
     max: {x: 100, y: 100, z: 100},
 };
 
-export type SnoovatarData = BasicUserData & {position: Coords, lastUpdate: number, persistent: boolean};
-
-export type SnooWorld = {
-    [id: string]: SnoovatarData;
+export type UserPrefs = {
+    showInactive: boolean;
 }
 
 export type SnooPagePacket = {
@@ -51,15 +39,20 @@ export type SnooPagePacket = {
 
 export class SnooPageState {
     public context: Context;
+
     readonly _world: UseStateResult<SnooWorld>;
     readonly _sessionId: UseStateResult<string>;
     readonly _currentVote: UseStateResult<SnooVote | null>;
-    readonly _initialVote: UseAsyncResult<SnooVote | null>;
-    readonly _channel: UseChannelResult<SnooPagePacket>;
-    readonly _heartbeat: UseIntervalResult;
-    readonly _purge: UseIntervalResult;
+    readonly _userPrefs: UseStateResult<UserPrefs>;
+
     readonly _owner: UseAsyncResult<boolean>;
-    readonly _saveTime: UseAsyncResult<number>;
+    readonly _initialVote: UseAsyncResult<SnooVote | null>;
+    readonly _redisSave: UseAsyncResult<SnoovatarData | null>;
+    readonly _ghostWorld: UseAsyncResult<SnooWorld>;
+
+    readonly _heartbeat: UseIntervalResult;
+
+    readonly _channel: UseChannelResult<SnooPagePacket>;
 
     constructor (readonly postState: CustomPostState) {
         this.context = postState.context;
@@ -79,72 +72,76 @@ export class SnooPageState {
             }
             return {};
         });
-
+        this._sessionId = useState<string>(Math.random().toString(36).substring(2));
         this._currentVote = useState<SnooVote | null>(null);
+        this._userPrefs = useState<UserPrefs>(() => ({
+            showInactive: true,
+        }));
 
+        // _initialVote must be defined before _redisSave, as _redisSave depends on mySnoovatar, which depends on currentVote, which depends on _initialVote
         this._initialVote = useAsync<SnooVote | null>(async () => {
             if (this.context.postId) {
                 return getPostSnooVote(this.context.redis, this.context.postId);
             }
             return null;
         });
+        this._redisSave = useAsync<SnoovatarData | null>(async () => {
+            if (!this.mySnoovatar) {
+                if (this.myLastSave) {
+                    return this.myLastSave;
+                }
+                return null;
+            }
 
-        this._sessionId = useState<string>(Math.random().toString(36).substring(2));
-        this._channel = useChannel<SnooPagePacket>({
-            name: `snooPageChannel${this.context.postId}`,
-            onMessage: this.onChannelMessage,
-            onSubscribed: this.onChannelSubscribed,
-            onUnsubscribed: this.onChannelUnsubscribed,
-        });
+            if (!this.worldId) {
+                return null;
+            }
 
+            if (!this.myLastSave) {
+                console.log(`No last save, saving ${this.mySnoovatar.username}'s position to Redis`);
+                void storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
+                return this.mySnoovatar;
+            }
+
+            if (this.mySnoovatar.position !== this.myLastSave.position) {
+                // only update at most once per 10 seconds
+                if (Date.now() - this.myLastSave.lastUpdate > 10000) {
+                    console.log(`Saving ${this.mySnoovatar.username}'s position to Redis`);
+                    void storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
+                }
+                return this.mySnoovatar;
+            } else {
+                // No need to update the redis save if the position hasn't changed.
+                return this.myLastSave;
+            }
+        }, {depends: [this.mySnoovatar]});
         this._owner = useAsync<boolean>(async () => {
             if (!this.postState.currentUserId || !this.currentVote?.id) {
                 return false;
             }
             return isVoteOwner(this.context.redis, this.postState.currentUserId, this.currentVote.id);
         }, {depends: [postState.currentUserId, this.currentVote]});
-
-        this._saveTime = useAsync<number>(
-            async () => Date.now(), // TODO: Save position to Redis
-            {depends: [this.world]}
-        );
-
-        this._channel.subscribe();
+        this._ghostWorld = useAsync<SnooWorld>(async () => {
+            if (!this.worldId) {
+                return {};
+            }
+            return getPersistentSnoos(this.context.redis, this.worldId);
+        }, {depends: [this.worldId]}); // TODO: Get saved snoos from redis
 
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
-        this._purge = useInterval(this.onPurgeInterval, 60000);
-    }
-
-    set currentVote (vote: SnooVote | null) {
-        this._currentVote[1](vote);
-    }
-
-    get currentVote (): SnooVote | null {
-        // Only set the vote from the async load if it's not already set
-        if (!this._currentVote[0] && !this._initialVote.loading && this._initialVote.data) {
-            this.currentVote = this._initialVote.data;
-            return this._initialVote.data;
-        }
-        return this._currentVote[0];
-    }
-
-    get isOwner (): boolean {
-        return this._owner.data ?? false;
-    }
-
-    get sessionId (): string {
-        return this._sessionId[0];
+        this._channel = useChannel<SnooPagePacket>({
+            name: `snooPageChannel${this.context.postId}`,
+            onMessage: this.onChannelMessage,
+            onSubscribed: this.onChannelSubscribed,
+            onUnsubscribed: this.onChannelUnsubscribed,
+        });
+        this._channel.subscribe();
     }
 
     get world (): SnooWorld {
         return this._world[0];
     }
-
-    get status (): ChannelStatus {
-        return this._channel.status;
-    }
-
     set world (world: SnooWorld) {
         this._world[1](world);
     }
@@ -167,6 +164,67 @@ export class SnooPageState {
         return null;
     }
 
+    get sessionId (): string {
+        return this._sessionId[0];
+    }
+
+    get worldId (): string | null {
+        return this.currentVote?.id ?? this.postState.currentPost?.id ?? null;
+    }
+
+    get currentVote (): SnooVote | null {
+        // Only set the vote from the async load if it's not already set
+        if (!this._currentVote[0] && !this._initialVote.loading && this._initialVote.data) {
+            this.currentVote = this._initialVote.data;
+            return this._initialVote.data;
+        }
+        return this._currentVote[0];
+    }
+    set currentVote (vote: SnooVote | null) {
+        this._currentVote[1](vote);
+    }
+
+    get showInactive (): boolean {
+        return this._userPrefs[0].showInactive;
+    }
+    set showInactive (showInactive: boolean) {
+        this._userPrefs[1]({showInactive});
+    }
+
+    get isOwner (): boolean {
+        return this._owner.data ?? false;
+    }
+
+    get myLastSave (): SnoovatarData | null {
+        return this._redisSave.data;
+    }
+
+    get ghostWorld (): SnooWorld {
+        return this._ghostWorld.data ?? {};
+    }
+
+    get displayWorld (): SnoovatarData[] {
+        let fullWorld: SnooWorld = this.world;
+        if (this.showInactive) {
+            fullWorld = {
+                ...this.ghostWorld,
+                ...this.world,
+            };
+        }
+
+        let unsortedWorld = Object.values(fullWorld);
+        if (!this.showInactive) {
+            const now = Date.now();
+            unsortedWorld = unsortedWorld.filter(snoovatar => now - snoovatar.lastUpdate < 60000 || snoovatar.id === this.mySnoovatar?.id);
+        }
+
+        return unsortedWorld.sort((a, b) => compareSnoos(a, b, this.mySnoovatar?.id));
+    }
+
+    get status (): ChannelStatus {
+        return this._channel.status;
+    }
+
     getVotes = (choiceId: string): number | undefined => {
         const numChoices = this.currentVote?.choices.length ?? 0;
         const choiceIndex = this.currentVote?.choices.findIndex(choice => choice.id === choiceId);
@@ -179,7 +237,7 @@ export class SnooPageState {
             return this.currentVote?.choices[choiceIndex].result;
         }
 
-        const positions = Object.values(this.world).map(snoovatar => snoovatar.position);
+        const positions = this.displayWorld.map(snoovatar => snoovatar.position);
         if (numChoices === 2 || numChoices === 3) {
             const choiceMin = choiceIndex * WorldBounds.max.x / numChoices;
             const choiceMax = (choiceIndex + 1) * WorldBounds.max.x / numChoices;
@@ -217,6 +275,10 @@ export class SnooPageState {
                 data: {...this.mySnoovatar, lastUpdate: Date.now()},
             });
         }
+    };
+
+    toggleInactives = () => {
+        this.showInactive = !this.showInactive;
     };
 
     moveSnoovatar = async (movement: Coords) => {
@@ -314,16 +376,5 @@ export class SnooPageState {
 
     onHeartbeatInterval = async () => {
         await this.sendHeartbeat();
-    };
-
-    onPurgeInterval = async () => {
-        const prunedWorld: SnooWorld = {};
-        for (const [id, snoovatar] of Object.entries(this.world)) {
-            if (Date.now() - snoovatar.lastUpdate > 60000 && snoovatar.id !== this.mySnoovatar?.id || snoovatar.persistent) {
-                continue;
-            }
-            prunedWorld[id] = snoovatar;
-        }
-        this.world = prunedWorld;
     };
 }

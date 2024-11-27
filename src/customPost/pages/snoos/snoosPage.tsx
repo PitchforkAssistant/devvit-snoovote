@@ -6,6 +6,7 @@ import {ChannelStatus} from "@devvit/public-api/types/realtime.js";
 import {StepSize, WorldBounds} from "./snoosState.js";
 import {VoteBackground} from "../../components/voteBg.js";
 import {VoteText} from "../../components/voteText.js";
+import {Prefs} from "../../components/prefs.js";
 
 export const SnoosPage = (state: CustomPostState) => {
     const snooState = state.PageStates?.snoos;
@@ -15,11 +16,10 @@ export const SnoosPage = (state: CustomPostState) => {
     return (
         <zstack width="100%" height="100%" grow>
             {!snooState._initialVote.loading && snooState.currentVote ? <VoteBackground vote={snooState.currentVote} uiDims={uiDims}/> : ""}
-            {Object.values(snooState._world[0]).filter(snoo => snoo.id !== snooState.mySnoovatar?.id && snoo.position.z < 1).map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
-            {Object.values(snooState._world[0]).filter(snoo => snoo.id === snooState.mySnoovatar?.id && snoo.position.z < 1).map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
+            {snooState.displayWorld.map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
             {!snooState._initialVote.loading && snooState.currentVote ? <VoteText vote={snooState.currentVote} getVotes={snooState.getVotes}/> : ""}
-            {Object.values(snooState._world[0]).filter(snoo => snoo.position.z >= 1).map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
             {snooState.mySnoovatar && <Controls step={StepSize} bounds={WorldBounds} pos={snooState.mySnoovatar.position} disabled={snooState.status !== ChannelStatus.Connected} isManager={snooState.postState.isManager} onPress={snooState.moveSnoovatar}/>}
+            {<Prefs showInactives={snooState.showInactive} onInactivesToggle={snooState.toggleInactives}/>}
         </zstack>
     );
 };

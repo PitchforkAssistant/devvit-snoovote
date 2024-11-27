@@ -1,6 +1,5 @@
 import {Devvit, RedisClient} from "@devvit/public-api";
 import {DualColor, isDualColor} from "./dualColor.js";
-import {SnooWorld} from "../customPost/pages/snoos/snoosState.js";
 
 export const votesStoreKey = "snoo:votes";
 export const votesAssociationKey = "snoo:votes:association";
@@ -120,8 +119,4 @@ export async function isVoteOwner (redis: RedisClient, authorId: string, voteId:
         }
     }
     return false;
-}
-
-export async function storePersistentSnoos (redis: RedisClient, voteId: string, snoos: SnooWorld): Promise<void> {
-    await redis.set(`snoos:${voteId}`, JSON.stringify(snoos));
 }
