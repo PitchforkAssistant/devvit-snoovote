@@ -4,8 +4,9 @@ import {ChannelStatus} from "@devvit/public-api/types/realtime.js";
 import {SnoovatarData, compareSnoos, getBlankSnoovatarUrl, getRandomSnooPosition} from "../../../utils/snoovatar.js";
 import {clamp} from "../../../utils/clamp.js";
 import {CustomPostState} from "../../postState.js";
-import {Coords, Area} from "../../../utils/coords.js";
+import {Coords, Area, equalCoords} from "../../../utils/coords.js";
 import {getPersistentSnoos, SnooWorld, storePersistentSnoo} from "../../../utils/snooWorld.js";
+import {AppSettings, defaultAppSettings, getAppSettings} from "../../../settings.js";
 
 export const StepSize: Coords = {x: 5, y: 5, z: 5};
 export const WorldBounds: Area = {
@@ -21,26 +22,26 @@ export type SnooPagePacket = {
     sessionId: string;
     userId: string;
 } & ({
-    sessionId: string;
-    userId: string;
     type: "position";
     data: SnoovatarData;
 } | {
-    sessionId: string;
-    userId: string;
     type: "heartbeat";
     data: SnoovatarData;
 } | {
-    sessionId: string;
-    userId: string;
     type: "vote";
     data: SnooVote;
+} | {
+    type: "refresh";
+    data: number;
 })
 
 export class SnooPageState {
     public context: Context;
 
     readonly _world: UseStateResult<SnooWorld>;
+    readonly _selfLoaded: UseStateResult<boolean>;
+    readonly _observer: UseStateResult<boolean>;
+    readonly _refresh: UseStateResult<number>;
     readonly _sessionId: UseStateResult<string>;
     readonly _currentVote: UseStateResult<SnooVote | null>;
     readonly _userPrefs: UseStateResult<UserPrefs>;
@@ -49,6 +50,7 @@ export class SnooPageState {
     readonly _initialVote: UseAsyncResult<SnooVote | null>;
     readonly _redisSave: UseAsyncResult<SnoovatarData | null>;
     readonly _ghostWorld: UseAsyncResult<SnooWorld>;
+    readonly _appSettings: UseAsyncResult<AppSettings>;
 
     readonly _heartbeat: UseIntervalResult;
 
@@ -66,12 +68,14 @@ export class SnooPageState {
                         snoovatar: postState.currentUser?.snoovatar ?? getBlankSnoovatarUrl(this.context.assets),
                         position: getRandomSnooPosition(WorldBounds, StepSize),
                         lastUpdate: Date.now(),
-                        persistent: false,
                     },
                 };
             }
             return {};
         });
+        this._selfLoaded = useState<boolean>(false);
+        this._observer = useState<boolean>(false);
+        this._refresh = useState<number>(0);
         this._sessionId = useState<string>(Math.random().toString(36).substring(2));
         this._currentVote = useState<SnooVote | null>(null);
         this._userPrefs = useState<UserPrefs>(() => ({
@@ -97,24 +101,29 @@ export class SnooPageState {
                 return null;
             }
 
+            if (this.currentVote?.frozen || !this.isSelfLoaded) {
+                return this.myLastSave;
+            }
+
             if (!this.myLastSave) {
                 console.log(`No last save, saving ${this.mySnoovatar.username}'s position to Redis`);
-                void storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
+                await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
                 return this.mySnoovatar;
             }
 
-            if (this.mySnoovatar.position !== this.myLastSave.position) {
-                // only update at most once per 10 seconds
-                if (Date.now() - this.myLastSave.lastUpdate > 10000) {
+            if (!equalCoords(this.mySnoovatar.position, this.myLastSave.position)) {
+                // only update at most once per x seconds
+                if (Date.now() - this.myLastSave.lastUpdate > this.appSettings.redisSaveIntervalMs) {
                     console.log(`Saving ${this.mySnoovatar.username}'s position to Redis`);
-                    void storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
+                    await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
+                    return this.mySnoovatar;
                 }
-                return this.mySnoovatar;
+                return this.myLastSave;
             } else {
                 // No need to update the redis save if the position hasn't changed.
                 return this.myLastSave;
             }
-        }, {depends: [this.mySnoovatar]});
+        }, {depends: [this.mySnoovatar, this.refresher]});
         this._owner = useAsync<boolean>(async () => {
             if (!this.postState.currentUserId || !this.currentVote?.id) {
                 return false;
@@ -126,7 +135,8 @@ export class SnooPageState {
                 return {};
             }
             return getPersistentSnoos(this.context.redis, this.worldId);
-        }, {depends: [this.worldId]}); // TODO: Get saved snoos from redis
+        }, {depends: [this.worldId, this.refresher]});
+        this._appSettings = useAsync<AppSettings>(async () => getAppSettings(this.context.settings), {depends: [this.refresher]});
 
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
@@ -148,10 +158,28 @@ export class SnooPageState {
 
     get mySnoovatar (): SnoovatarData | null {
         if (this.postState.currentUser) {
+            // We want to avoid setting state multiple times, so we'll use this to potentially
+            let newWorld: SnooWorld | null = null;
+
+            // If the self ghost isn't loaded, see if the ghost world has loaded and update to the user's saved position
+            if (this._ghostWorld && !this.isSelfLoaded && !this._ghostWorld.loading) {
+                if (this.ghostWorld[this.postState.currentUser.id]) {
+                    newWorld = {
+                        ...this.world,
+                        [this.postState.currentUser.id]: {
+                            ...this.world[this.postState.currentUser.id],
+                            position: this.ghostWorld[this.postState.currentUser.id].position,
+                        },
+                    };
+                }
+                this.isSelfLoaded = true;
+            }
+
+            // TODO: Possibly better integrate this with the this._selfLoaded state
             // If the user is missing a username and currentUser has finished loading, update the world
             if (this.world[this.postState.currentUser.id] && !this.world[this.postState.currentUser.id].username) {
-                this.world = {
-                    ...this.world,
+                newWorld = {
+                    ...newWorld ?? this.world,
                     [this.postState.currentUser.id]: {
                         ...this.world[this.postState.currentUser.id],
                         username: this.postState.currentUser.username,
@@ -159,13 +187,41 @@ export class SnooPageState {
                     },
                 };
             }
+            if (newWorld) {
+                this.world = newWorld;
+            }
+
             return this.world[this.postState.currentUser.id];
         }
         return null;
     }
 
+    get isSelfLoaded (): boolean {
+        return this._selfLoaded[0];
+    }
+
+    protected set isSelfLoaded (loaded: boolean) {
+        this._selfLoaded[1](loaded);
+    }
+
+    get isObserver (): boolean {
+        return this._observer[0];
+    }
+
+    set isObserver (observer: boolean) {
+        this._observer[1](observer);
+    }
+
     get sessionId (): string {
         return this._sessionId[0];
+    }
+
+    get refresher (): number {
+        return this._refresh[0];
+    }
+
+    set refresher (time: number) {
+        this._refresh[1](time);
     }
 
     get worldId (): string | null {
@@ -203,6 +259,10 @@ export class SnooPageState {
         return this._ghostWorld.data ?? {};
     }
 
+    get appSettings (): AppSettings {
+        return this._appSettings.data ?? defaultAppSettings;
+    }
+
     get displayWorld (): SnoovatarData[] {
         let fullWorld: SnooWorld = this.world;
         if (this.showInactive) {
@@ -215,7 +275,7 @@ export class SnooPageState {
         let unsortedWorld = Object.values(fullWorld);
         if (!this.showInactive) {
             const now = Date.now();
-            unsortedWorld = unsortedWorld.filter(snoovatar => now - snoovatar.lastUpdate < 60000 || snoovatar.id === this.mySnoovatar?.id);
+            unsortedWorld = unsortedWorld.filter(snoovatar => now - snoovatar.lastUpdate < this.appSettings.inactiveTimeoutMs || snoovatar.id === this.mySnoovatar?.id);
         }
 
         return unsortedWorld.sort((a, b) => compareSnoos(a, b, this.mySnoovatar?.id));
@@ -226,6 +286,11 @@ export class SnooPageState {
     }
 
     getVotes = (choiceId: string): number | undefined => {
+        // For frozen votes, return the stored result
+        if (this.currentVote?.frozen && this.currentVote?.result && this.currentVote?.result.votes[choiceId] !== undefined) {
+            return this.currentVote?.result?.votes[choiceId];
+        }
+
         const numChoices = this.currentVote?.choices.length ?? 0;
         const choiceIndex = this.currentVote?.choices.findIndex(choice => choice.id === choiceId);
 
@@ -237,6 +302,7 @@ export class SnooPageState {
             return this.currentVote?.choices[choiceIndex].result;
         }
 
+        // TODO: Untangle the mess between displayWorld, frozen votes, and hiding inactive snoos
         const positions = this.displayWorld.map(snoovatar => snoovatar.position);
         if (numChoices === 2 || numChoices === 3) {
             const choiceMin = choiceIndex * WorldBounds.max.x / numChoices;
@@ -246,31 +312,38 @@ export class SnooPageState {
 
         if (numChoices === 4) {
             const choiceMin = {
-                x: choiceIndex % 2 === 0 ? WorldBounds.min.x : WorldBounds.max.x / 2,
-                y: choiceIndex < 2 ? WorldBounds.min.y : WorldBounds.max.y / 2,
+                x: choiceIndex % 2 === 0 ? WorldBounds.min.x - 1 : WorldBounds.max.x / 2,
+                y: choiceIndex < 2 ? WorldBounds.min.y - 1 : WorldBounds.max.y / 2,
             };
             const choiceMax = {
-                x: choiceIndex % 2 === 0 ? WorldBounds.max.x / 2 : WorldBounds.max.x,
-                y: choiceIndex < 2 ? WorldBounds.max.y / 2 : WorldBounds.max.y,
+                x: choiceIndex % 2 === 0 ? WorldBounds.max.x / 2 : WorldBounds.max.x + 1,
+                y: choiceIndex < 2 ? WorldBounds.max.y / 2 : WorldBounds.max.y + 1,
             };
 
             return positions.filter(pos => pos.x >= choiceMin.x && pos.x < choiceMax.x && pos.y >= choiceMin.y && pos.y < choiceMax.y).length;
         }
     };
 
-    sendToChannel = async (message: SnooPagePacket) => {
+    sendToChannel = async (message: Omit<SnooPagePacket, "sessionId" | "userId">) => {
+        if (!this.context.userId || !this.sessionId || this.isObserver) {
+            return;
+        }
+        const fullMessage: SnooPagePacket = {
+            ...message,
+            sessionId: this.sessionId,
+            userId: this.context.userId,
+        } as SnooPagePacket;
         if (this._channel.status === ChannelStatus.Connected) {
-            await this._channel.send(message);
+            await this._channel.send(fullMessage);
         } else {
             this._channel.subscribe();
+            await this._channel.send(fullMessage);
         }
     };
 
     sendHeartbeat = async () => {
         if (this.mySnoovatar) {
             await this.sendToChannel({
-                sessionId: this.sessionId,
-                userId: this.mySnoovatar.id,
                 type: "heartbeat",
                 data: {...this.mySnoovatar, lastUpdate: Date.now()},
             });
@@ -312,12 +385,12 @@ export class SnooPageState {
                 ...this.world,
                 [mySnoovatar.id]: myNewSnoovatar,
             };
-            await this.sendToChannel({
-                sessionId: this.sessionId,
-                userId: mySnoovatar.id,
-                type: "position",
-                data: myNewSnoovatar,
-            });
+            if (Object.values(this.world).length < this.appSettings.sendPosPacketMaxSnoos) {
+                await this.sendToChannel({
+                    type: "position",
+                    data: myNewSnoovatar,
+                });
+            }
         }
     };
 
@@ -336,26 +409,35 @@ export class SnooPageState {
             return;
         }
 
-        if (message.type === "position") {
-            this.onPositionChange(message.data);
-        }
-
-        if (message.type === "heartbeat") {
-            if (!this.world[message.userId]) {
+        if (!this.currentVote?.frozen) {
+            if (message.type === "position") {
                 this.onPositionChange(message.data);
-            } else {
-                this.world = {
-                    ...this.world,
-                    [message.userId]: {
-                        ...this.world[message.userId],
-                        lastUpdate: Date.now(),
-                    },
-                };
+            }
+
+            if (message.type === "heartbeat") {
+                if (!this.world[message.userId] || !equalCoords(this.world[message.userId].position, message.data.position)) {
+                    this.onPositionChange(message.data);
+                } else {
+                    this.world = {
+                        ...this.world,
+                        [message.userId]: {
+                            ...this.world[message.userId],
+                            lastUpdate: Date.now(),
+                        },
+                    };
+                }
             }
         }
 
         if (message.type === "vote") {
             this._currentVote[1](message.data);
+            if (message.data.frozen) {
+                this.showInactive = true;
+            }
+        }
+
+        if (message.type === "refresh") {
+            this.refresher = message.data;
         }
     };
 
@@ -375,6 +457,20 @@ export class SnooPageState {
     };
 
     onHeartbeatInterval = async () => {
-        await this.sendHeartbeat();
+        if (!this.mySnoovatar) {
+            return;
+        }
+
+        if (Date.now() - this.mySnoovatar.lastUpdate >= this.appSettings.heartbeatIntervalMs) {
+            // Set the last update locally
+            this.world = {
+                ...this.world,
+                [this.mySnoovatar.id]: {
+                    ...this.mySnoovatar,
+                    lastUpdate: Date.now(),
+                },
+            };
+            await this.sendHeartbeat();
+        }
     };
 }

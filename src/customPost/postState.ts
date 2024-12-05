@@ -15,7 +15,7 @@ export class CustomPostState {
 
     readonly _currentPost: UseAsyncResult<BasicPostData | null>;
 
-    readonly _manager: UseAsyncResult<boolean>;
+    readonly _moderator: UseAsyncResult<boolean>;
 
     public PageStates: PageStateList;
 
@@ -58,7 +58,7 @@ export class CustomPostState {
             };
         });
 
-        this._manager = useAsync<boolean>(async () => {
+        this._moderator = useAsync<boolean>(async () => {
             if (!context.subredditName || !this.currentUser) {
                 return false;
             }
@@ -67,9 +67,9 @@ export class CustomPostState {
 
         // We need to initialize the page states here, otherwise they'll get reset on every page change
         this.PageStates = {
+            help: undefined,
             snoos: new SnooPageState(this),
             manager: new ManagerPageState(this),
-            help: undefined,
         };
     }
 
@@ -78,7 +78,11 @@ export class CustomPostState {
     }
 
     get isManager (): boolean {
-        return this._manager.data ?? false;
+        return this.isModerator || this.currentUserId === this.currentPost?.author.id;
+    }
+
+    get isModerator (): boolean {
+        return this._moderator.data ?? false;
     }
 
     get isDebug (): boolean {

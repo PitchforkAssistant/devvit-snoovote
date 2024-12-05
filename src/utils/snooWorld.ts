@@ -17,3 +17,7 @@ export async function getPersistentSnoos (redis: RedisClient, voteId: string): P
         return snooWorld;
     }, {} as SnooWorld);
 }
+
+export async function resetPersistentSnoos (redis: RedisClient, voteId: string) {
+    await redis.del(`snoos:${voteId}`);
+}

@@ -11,6 +11,7 @@ export type SnooImageOptions = {
 
 export type SnooVoteResult = {
     winnerId: string;
+    time?: number;
     votes: {[choiceId: string]: number};
 }
 
@@ -30,6 +31,7 @@ export type SnooVote = {
     textColor: DualColor;
     backgroundColor: DualColor;
     choices: SnooVoteChoice[];
+    frozen?: boolean;
     result?: SnooVoteResult;
 }
 
@@ -49,7 +51,8 @@ export function isSnooVoteResult (object: unknown): object is SnooVoteResult {
     const snooVoteResult = object as SnooVoteResult;
     return typeof snooVoteResult.winnerId === "string" &&
            typeof snooVoteResult.votes === "object" &&
-           Object.values(snooVoteResult.votes).every(vote => typeof vote === "number");
+           Object.values(snooVoteResult.votes).every(vote => typeof vote === "number") &&
+           (snooVoteResult.time === undefined || typeof snooVoteResult.time === "number");
 }
 
 export function isSnooVoteChoice (object: unknown): object is SnooVoteChoice {
@@ -75,12 +78,17 @@ export function isSnooVote (object: unknown): object is SnooVote {
            isDualColor(snooVote.backgroundColor) &&
            Array.isArray(snooVote.choices) &&
            snooVote.choices.every(isSnooVoteChoice) &&
-           (snooVote.result ? isSnooVoteResult(snooVote.result) : true);
+           (snooVote.result ? isSnooVoteResult(snooVote.result) : true) &&
+           (snooVote.frozen === undefined || typeof snooVote.frozen === "boolean");
 }
 
 export async function storeSnooVote (redis: RedisClient, authorId: string, vote: SnooVote): Promise<void> {
     await redis.hSet(votesStoreKey, {[vote.id]: JSON.stringify(vote)});
     await redis.zAdd(`votes:${authorId}`, {member: vote.id, score: Date.now()});
+}
+
+export async function updateSnooVote (redis: RedisClient, vote: SnooVote): Promise<void> {
+    await redis.hSet(votesStoreKey, {[vote.id]: JSON.stringify(vote)});
 }
 
 export async function getPostSnooVoteId (redis: RedisClient, postId: string): Promise<string | null> {
@@ -91,11 +99,7 @@ export async function getPostSnooVoteId (redis: RedisClient, postId: string): Pr
     return voteId;
 }
 
-export async function getPostSnooVote (redis: RedisClient, postId: string): Promise<SnooVote | null> {
-    const voteId = await getPostSnooVoteId(redis, postId);
-    if (!voteId) {
-        return null;
-    }
+export async function getSnooVote (redis: RedisClient, voteId: string): Promise<SnooVote | null> {
     const vote = await redis.hGet(votesStoreKey, voteId);
     if (!vote) {
         return null;
@@ -105,6 +109,14 @@ export async function getPostSnooVote (redis: RedisClient, postId: string): Prom
         return null;
     }
     return parsedVote;
+}
+
+export async function getPostSnooVote (redis: RedisClient, postId: string): Promise<SnooVote | null> {
+    const voteId = await getPostSnooVoteId(redis, postId);
+    if (!voteId) {
+        return null;
+    }
+    return getSnooVote(redis, voteId);
 }
 
 export async function setPostSnooVote (redis: RedisClient, postId: string, voteId: string): Promise<void> {
@@ -119,4 +131,25 @@ export async function isVoteOwner (redis: RedisClient, authorId: string, voteId:
         }
     }
     return false;
+}
+
+export async function getAllSnooVotes (redis: RedisClient, authorId?: string): Promise<SnooVote[]> {
+    const allVotes = await redis.hGetAll(votesStoreKey);
+    // All votes if no author is specified
+    if (!authorId) {
+        return Object.values(allVotes).map(vote => JSON.parse(vote) as unknown).filter(isSnooVote);
+    }
+
+    const ownedVoteIds = await redis.zRange(`votes:${authorId}`, 0, -1);
+    const ownedVotes = [];
+    for (const voteId of ownedVoteIds) {
+        const vote = allVotes[voteId.member];
+        if (vote) {
+            const parsedVote = JSON.parse(vote) as unknown;
+            if (isSnooVote(parsedVote)) {
+                ownedVotes.push(parsedVote);
+            }
+        }
+    }
+    return ownedVotes;
 }

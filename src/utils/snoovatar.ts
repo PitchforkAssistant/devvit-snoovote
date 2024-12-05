@@ -25,7 +25,7 @@ export function compareSnoos (a: SnoovatarData, b: SnoovatarData, myId?: string)
         return -1;
     }
 
-    return a.lastUpdate - b.lastUpdate;
+    return b.id.localeCompare(a.id);
 }
 
 export const randomSnoovatars = [

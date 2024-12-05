@@ -1,6 +1,6 @@
 import {Devvit} from "@devvit/public-api";
 import {CustomPostState} from "../../postState.js";
-
+// TODO: Improve the HelpPage contents
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const HelpPage = (state: CustomPostState) => (
     <vstack alignment="top center" padding="small" width="100%" height="100%" grow>

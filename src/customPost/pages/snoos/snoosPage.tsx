@@ -16,11 +16,10 @@ export const SnoosPage = (state: CustomPostState) => {
     return (
         <zstack width="100%" height="100%" grow>
             {!snooState._initialVote.loading && snooState.currentVote ? <VoteBackground vote={snooState.currentVote} uiDims={uiDims}/> : ""}
-            {snooState.displayWorld.map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
+            {!(!snooState.showInactive && snooState.currentVote?.frozen) && snooState.displayWorld.map(snoo => <Snoo snoo={snoo} scale={snoo.position.z} uiDims={uiDims}/>)}
             {!snooState._initialVote.loading && snooState.currentVote ? <VoteText vote={snooState.currentVote} getVotes={snooState.getVotes}/> : ""}
-            {snooState.mySnoovatar && <Controls step={StepSize} bounds={WorldBounds} pos={snooState.mySnoovatar.position} disabled={snooState.status !== ChannelStatus.Connected} isManager={snooState.postState.isManager} onPress={snooState.moveSnoovatar}/>}
-            {<Prefs showInactives={snooState.showInactive} onInactivesToggle={snooState.toggleInactives}/>}
+            {snooState.mySnoovatar && !snooState.currentVote?.frozen && !snooState.isObserver && <Controls step={StepSize} bounds={WorldBounds} pos={snooState.mySnoovatar.position} disabled={snooState.status !== ChannelStatus.Connected} isManager={snooState.postState.isManager} onPress={snooState.moveSnoovatar}/>}
+            {snooState.postState.currentUserId && <Prefs showInactives={snooState.showInactive} onInactivesToggle={snooState.toggleInactives}/>}
         </zstack>
     );
 };
-

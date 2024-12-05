@@ -18,3 +18,7 @@ export function isCoords (object: unknown): object is Coords {
            typeof coords.y === "number" &&
            typeof coords.z === "number";
 }
+
+export function equalCoords (a: Coords, b: Coords): boolean {
+    return a.x === b.x && a.y === b.y && a.z === b.z;
+}
