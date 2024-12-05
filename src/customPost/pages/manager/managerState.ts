@@ -1,7 +1,7 @@
 import {Context, FormKey, useForm} from "@devvit/public-api";
 
 import {CustomPostState} from "../../postState.js";
-import {getAllSnooVotes, getSnooVote, isSnooVote, updateSnooVote} from "../../../utils/snooVote.js";
+import {getAllSnooVotes, getSnooVote, isSnooVote, setPostSnooVote, updateSnooVote} from "../../../utils/snooVote.js";
 import {resetPersistentSnoos} from "../../../utils/snooWorld.js";
 import {resetConfirmForm, ResetConfirmFormSubmitData} from "../../../forms/resetConfirmForm.js";
 import {editVoteForm, EditVoteFormSubmitData} from "../../../forms/editVoteForm.js";
@@ -64,12 +64,18 @@ export class ManagerPageState {
             return;
         }
 
+        if (!this.context.postId) {
+            this.context.ui.showToast("No post ID found!");
+            return;
+        }
+
         const newVote = await getSnooVote(this.context.redis, newVoteId);
         if (!newVote) {
             this.context.ui.showToast("Failed to get selected vote!");
             return;
         }
 
+        await setPostSnooVote(this.context.redis, this.context.postId, newVoteId);
         this.snoosState.currentVote = newVote;
         await this.snoosState.sendToChannel({
             type: "vote",
