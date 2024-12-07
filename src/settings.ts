@@ -7,6 +7,8 @@ export type AppSettings = {
     inactiveTimeoutMs: number;
     discordUrl: string;
     moreUrl: string;
+    forceRefreshes: boolean;
+    forceRefreshIntevalMs: number;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -16,6 +18,8 @@ export const defaultAppSettings: AppSettings = {
     inactiveTimeoutMs: 60000,
     discordUrl: "https://discord.gg/HKMxwCfbrN",
     moreUrl: "https://sh.reddit.com/r/ModWorldDevvit/comments/1h5zwsw/devvit_app_showcase/",
+    forceRefreshes: false,
+    forceRefreshIntevalMs: 10000,
 };
 
 export async function getAppSettings (settings: SettingsClient): Promise<AppSettings> {
@@ -28,6 +32,8 @@ export async function getAppSettings (settings: SettingsClient): Promise<AppSett
         inactiveTimeoutMs: typeof allSettings.inactiveTimeoutMs === "number" ? allSettings.inactiveTimeoutMs : defaultAppSettings.inactiveTimeoutMs,
         discordUrl: typeof allSettings.discordUrl === "string" ? allSettings.discordUrl : defaultAppSettings.discordUrl,
         moreUrl: typeof allSettings.moreUrl === "string" ? allSettings.moreUrl : defaultAppSettings.moreUrl,
+        forceRefreshes: typeof allSettings.forceRefreshes === "boolean" ? allSettings.forceRefreshes : defaultAppSettings.forceRefreshes,
+        forceRefreshIntevalMs: typeof allSettings.forceRefreshIntevalMs === "number" ? allSettings.forceRefreshIntevalMs : defaultAppSettings.forceRefreshIntevalMs,
     };
 }
 
@@ -74,5 +80,19 @@ export const devvitAppSettings = Devvit.addSettings([
         label: "More URL",
         helpText: "This is used as the 'Check out the other demos!' link on the app help page.",
         defaultValue: defaultAppSettings.moreUrl,
+    },
+    {
+        type: "boolean",
+        name: "forceRefreshes",
+        label: "Force Refreshes",
+        helpText: "If enabled, the app will send a refresh packet to all clients every Force Refresh Interval milliseconds.",
+        defaultValue: defaultAppSettings.forceRefreshes,
+    },
+    {
+        type: "number",
+        name: "forceRefreshIntevalMs",
+        label: "Force Refresh Interval",
+        helpText: "If Force Refreshes is enabled, this is the minimum delay in milliseconds between sending a refresh packet to all clients. Does not go below 1000ms.",
+        defaultValue: defaultAppSettings.forceRefreshIntevalMs,
     },
 ]);

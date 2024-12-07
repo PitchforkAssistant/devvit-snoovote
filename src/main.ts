@@ -29,6 +29,7 @@ export {appUpgradeTrigger} from "./triggers/appUpgrade.js";
 
 // Jobs
 export {previewUpdaterJob} from "./scheduler/previewUpdaterJob.js";
+export {forceRefresherJob} from "./scheduler/forceRefresherJob.js";
 
 export default Devvit;
 
