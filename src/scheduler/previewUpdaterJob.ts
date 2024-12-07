@@ -17,7 +17,7 @@ export async function onPreviewUpdaterJob (event: ScheduledJobEvent<undefined>, 
             } else {
                 await post.setCustomPostPreview(() => advancedPreviewMaker({
                     vote: currentVote,
-                    uiDims: {width: 512, height: 379, scale: 3.5},
+                    uiDims: {width: 512, height: 512, scale: 3.5},
                     getVotes: (choiceId: string) => currentVote.result?.votes[choiceId],
                 }));
             }
