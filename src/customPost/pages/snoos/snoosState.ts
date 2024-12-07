@@ -109,14 +109,24 @@ export class SnooPageState {
             }
 
             if (!this.myLastSave) {
-                await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                try {
+                    await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                } catch (e) {
+                    console.error(`Error saving snoo to redis: ${String(e)}`);
+                    return this.myLastSave;
+                }
                 return this.localSnoo;
             }
 
             if (!equalCoords(this.localSnoo.position, this.myLastSave.position)) {
                 // only update at most once per x seconds
                 if (Date.now() - this.myLastSave.lastUpdate > this.appSettings.redisSaveIntervalMs) {
-                    await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                    try {
+                        await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                    } catch (e) {
+                        console.error(`Error saving snoo to redis: ${String(e)}`);
+                        return this.myLastSave;
+                    }
                     return this.localSnoo;
                 }
                 return this.myLastSave;
@@ -340,20 +350,28 @@ export class SnooPageState {
             sessionId: this.sessionId,
             userId: this.context.userId,
         } as SnooPagePacket;
-        if (this._channel.status === ChannelStatus.Connected) {
-            await this._channel.send(fullMessage);
-        } else {
-            this._channel.subscribe();
-            await this._channel.send(fullMessage);
+        try {
+            if (this._channel.status === ChannelStatus.Connected) {
+                await this._channel.send(fullMessage);
+            } else {
+                this._channel.subscribe();
+                await this._channel.send(fullMessage);
+            }
+        } catch (e) {
+            console.error(`Error sending message to channel: ${String(e)}`);
         }
     };
 
     sendHeartbeat = async () => {
         if (this.localSnoo) {
-            await this.sendToChannel({
-                type: "heartbeat",
-                data: {...this.localSnoo, lastUpdate: Date.now()},
-            });
+            try {
+                await this.sendToChannel({
+                    type: "heartbeat",
+                    data: {...this.localSnoo, lastUpdate: Date.now()},
+                });
+            } catch (e) {
+                console.error(`Error sending heartbeat: ${String(e)}`);
+            }
         }
     };
 
