@@ -104,7 +104,7 @@ export class SnooPageState {
                 return null;
             }
 
-            if (this.currentVote?.frozen || !this.isSelfLoaded) {
+            if (this.currentVote?.frozen || !this.isSelfLoaded || this.localSnoo.username === "" || this.localSnoo.snoovatar === getBlankSnoovatarUrl(this.context.assets)) {
                 return this.myLastSave;
             }
 
@@ -398,7 +398,6 @@ export class SnooPageState {
 
     onPositionChange = (data: SnoovatarData) => {
         if (data.id === this.localSnoo?.id) {
-            this.localSnoo = data;
             return;
         }
         this.world = {
@@ -466,7 +465,7 @@ export class SnooPageState {
             this._channel.subscribe();
         }
 
-        if (!this.localSnoo) {
+        if (!this.localSnoo || this.localSnoo.username === "" || this.localSnoo.snoovatar === getBlankSnoovatarUrl(this.context.assets)) {
             return;
         }
 
