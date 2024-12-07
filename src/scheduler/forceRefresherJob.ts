@@ -13,7 +13,7 @@ export async function onForceRefresherJob (event: ScheduledJobEvent<undefined>, 
     console.log(`onForceRefresherJob\nevent:\n${JSON.stringify(event)}\ncontext:\n${JSON.stringify(context)}`);
 
     const lastRefresh = await context.redis.get("lastRefresh");
-    if (!lastRefresh || Date.now() - Number(lastRefresh) < appSettings.forceRefreshIntevalMs) {
+    if (!Number.isNaN(Number(lastRefresh)) && Date.now() - Number(lastRefresh) < appSettings.forceRefreshIntevalMs) {
         return;
     }
     await context.redis.set("lastRefresh", String(Date.now()));

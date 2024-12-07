@@ -415,6 +415,8 @@ export class SnooPageState {
             return;
         }
 
+        console.log(`Received message: ${JSON.stringify(message)}`);
+
         if (!this.currentVote?.frozen) {
             if (message.type === "position") {
                 this.onPositionChange(message.data);
