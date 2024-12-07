@@ -1,5 +1,5 @@
 import {Context, Devvit, Form, FormKey, FormOnSubmitEvent, FormOnSubmitEventHandler} from "@devvit/public-api";
-import {CustomPostPreview} from "../customPost/components/preview.js";
+import {BasicPreview} from "../customPost/components/basicPreview.js";
 
 const form: Form = {
     fields: [
@@ -34,7 +34,7 @@ const formHandler: FormOnSubmitEventHandler<CreatePostBlankFormSubmitData> = asy
         const newPost = await context.reddit.submitPost({
             title,
             subredditName,
-            preview: CustomPostPreview,
+            preview: BasicPreview,
             textFallback: {text: "The platform you're using doesn't support custom posts. Please use Shreddit or an up to date app to view this post."},
         });
         context.ui.showToast({

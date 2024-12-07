@@ -35,6 +35,7 @@ export type SnooPagePacket = {
     data: number;
 })
 
+// TODO: Clean up this class, it's a bit of a mess right now from adding features on the fly
 export class SnooPageState {
     public context: Context;
 
@@ -106,7 +107,6 @@ export class SnooPageState {
             }
 
             if (!this.myLastSave) {
-                console.log(`No last save, saving ${this.mySnoovatar.username}'s position to Redis`);
                 await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
                 return this.mySnoovatar;
             }
@@ -114,7 +114,6 @@ export class SnooPageState {
             if (!equalCoords(this.mySnoovatar.position, this.myLastSave.position)) {
                 // only update at most once per x seconds
                 if (Date.now() - this.myLastSave.lastUpdate > this.appSettings.redisSaveIntervalMs) {
-                    console.log(`Saving ${this.mySnoovatar.username}'s position to Redis`);
                     await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
                     return this.mySnoovatar;
                 }
@@ -147,6 +146,7 @@ export class SnooPageState {
             onUnsubscribed: this.onChannelUnsubscribed,
         });
         this._channel.subscribe();
+        this._heartbeat.start();
     }
 
     get world (): SnooWorld {
@@ -450,13 +450,16 @@ export class SnooPageState {
     };
 
     onChannelUnsubscribed = async () => {
-        this._heartbeat.stop();
         if (this.mySnoovatar) {
             console.log(`${this.mySnoovatar.username} has unsubscribed from the ${this.context.postId} channel`);
         }
     };
 
     onHeartbeatInterval = async () => {
+        if (this.status !== ChannelStatus.Connected && this.status !== ChannelStatus.Connecting) {
+            this._channel.subscribe();
+        }
+
         if (!this.mySnoovatar) {
             return;
         }

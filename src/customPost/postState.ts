@@ -5,6 +5,7 @@ import {getRandomSnoovatarUrl} from "../utils/snoovatar.js";
 import {SnooPageState} from "./pages/snoos/snoosState.js";
 import {isModerator} from "devvit-helpers";
 import {ManagerPageState} from "./pages/manager/managerState.js";
+import {HelpPageState} from "./pages/help/helpState.js";
 
 export class CustomPostState {
     readonly _currentPage: UseStateResult<PageName>;
@@ -67,7 +68,7 @@ export class CustomPostState {
 
         // We need to initialize the page states here, otherwise they'll get reset on every page change
         this.PageStates = {
-            help: undefined,
+            help: new HelpPageState(this),
             snoos: new SnooPageState(this),
             manager: new ManagerPageState(this),
         };

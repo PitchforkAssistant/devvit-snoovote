@@ -7,9 +7,6 @@ Devvit.configure({
     realtime: true,
 });
 
-Devvit.debug.emitSnapshots = true;
-Devvit.debug.emitState = true;
-
 // Settings
 export {devvitAppSettings} from "./settings.js";
 
@@ -29,6 +26,9 @@ export {snooVotePost} from "./customPost/index.js";
 // Triggers
 export {appInstallTrigger} from "./triggers/appInstall.js";
 export {appUpgradeTrigger} from "./triggers/appUpgrade.js";
+
+// Jobs
+export {previewUpdaterJob} from "./scheduler/previewUpdaterJob.js";
 
 export default Devvit;
 

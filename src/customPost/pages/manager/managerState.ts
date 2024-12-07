@@ -1,7 +1,7 @@
 import {Context, FormKey, useForm} from "@devvit/public-api";
 
 import {CustomPostState} from "../../postState.js";
-import {getAllSnooVotes, getSnooVote, isSnooVote, setPostSnooVote, updateSnooVote} from "../../../utils/snooVote.js";
+import {getAllSnooVotes, getSnooVote, isSnooVote, queuePreview, setPostSnooVote, updateSnooVote} from "../../../utils/snooVote.js";
 import {resetPersistentSnoos} from "../../../utils/snooWorld.js";
 import {resetConfirmForm, ResetConfirmFormSubmitData} from "../../../forms/resetConfirmForm.js";
 import {editVoteForm, EditVoteFormSubmitData} from "../../../forms/editVoteForm.js";
@@ -91,6 +91,11 @@ export class ManagerPageState {
             return;
         }
 
+        if (!this.context.postId) {
+            this.context.ui.showToast("No post ID found!");
+            return;
+        }
+
         const updatedVote = {...this.currentVote};
         updatedVote.frozen = isFrozen;
         try {
@@ -128,6 +133,7 @@ export class ManagerPageState {
                 data: Date.now(),
             });
             await updateSnooVote(this.context.redis, updatedVote);
+            await queuePreview(this.context.redis, this.context.postId);
 
             this.context.ui.showToast(`Vote set to ${isFrozen ? "frozen" : "unfrozen"}`);
         } catch (e) {
@@ -142,6 +148,15 @@ export class ManagerPageState {
             data: Date.now(),
         });
         this.context.ui.showToast("Refresh sent!");
+    };
+
+    updatePreviewPressed = async () => {
+        if (!this.context.postId) {
+            this.context.ui.showToast("No post ID found!");
+            return;
+        }
+        await queuePreview(this.context.redis, this.context.postId);
+        this.context.ui.showToast("Preview update queued!");
     };
 
     editRawVotePressed = async () => {
@@ -159,6 +174,11 @@ export class ManagerPageState {
             return;
         }
 
+        if (!this.context.postId) {
+            this.context.ui.showToast("No post ID found!");
+            return;
+        }
+
         try {
             const rawVote = JSON.parse(rawVoteString) as unknown;
             if (!rawVote) {
@@ -170,6 +190,7 @@ export class ManagerPageState {
             }
 
             await updateSnooVote(this.context.redis, rawVote);
+            await queuePreview(this.context.redis, this.context.postId);
             this.snoosState.currentVote = rawVote;
             await this.snoosState.sendToChannel({
                 type: "vote",

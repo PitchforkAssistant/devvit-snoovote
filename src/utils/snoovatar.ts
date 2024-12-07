@@ -25,6 +25,7 @@ export function compareSnoos (a: SnoovatarData, b: SnoovatarData, myId?: string)
         return -1;
     }
 
+    // Should prevent a lot of flickering by sorting equivalent Snoos by ID
     return b.id.localeCompare(a.id);
 }
 

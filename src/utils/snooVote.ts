@@ -3,6 +3,7 @@ import {DualColor, isDualColor} from "./dualColor.js";
 
 export const votesStoreKey = "snoo:votes";
 export const votesAssociationKey = "snoo:votes:association";
+export const previewUpdateQueue = "snoo:votes:previews";
 
 export type SnooImageOptions = {
     url: string;
@@ -152,4 +153,17 @@ export async function getAllSnooVotes (redis: RedisClient, authorId?: string): P
         }
     }
     return ownedVotes;
+}
+
+export async function getQueuedPreviews (redis: RedisClient): Promise<string[]> {
+    const zRangeResult = await redis.zRange(previewUpdateQueue, 0, -1);
+    return zRangeResult.map(result => result.member);
+}
+
+export async function queuePreview (redis: RedisClient, postId: string) {
+    await redis.zAdd(previewUpdateQueue, {member: postId, score: Date.now()});
+}
+
+export async function unqueuePreview (redis: RedisClient, postId: string) {
+    await redis.zRem(previewUpdateQueue, [postId]);
 }

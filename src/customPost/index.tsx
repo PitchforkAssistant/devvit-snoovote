@@ -20,13 +20,13 @@ export const snooVotePost = Devvit.addCustomPostType({
                         <text>isOwner: {state.PageStates.snoos.isOwner}</text>
                         <text>isManager: {state.isManager}</text>
                         <text>currentVote: {state.PageStates.snoos.currentVote?.id ?? state.PageStates.snoos._initialVote.loading}</text>
+                        <text>uiDims: {JSON.stringify(state.context.uiEnvironment?.dimensions) ?? ""}</text>
                     </vstack>}
                     <vstack alignment="center top" width="100%" height="100%">
                         <hstack padding="medium" alignment="center middle" minWidth="100%">
-                            {state.currentUserId && !state.PageStates.snoos.isObserver &&
+                            {state.currentUserId && !state.PageStates.snoos.isObserver && state.currentPage === "snoos" &&
                             <vstack backgroundColor="rgba(0,0,0,0.5)" cornerRadius="full" padding="xsmall">
-                                {state.currentPage === "snoos" && <button icon="help" size="small" onPress={() => state.changePage("help")}/>}
-                                {state.currentPage !== "snoos" && <button icon="back" size="small" onPress={() => state.changePage("snoos")}/>}
+                                <button icon="help" size="small" onPress={() => state.changePage("help")}/>
                             </vstack>}
                             <spacer size="xsmall" grow/>
                             {(state.isManager || state.PageStates.snoos.isOwner) && !state.PageStates.snoos.isObserver && state.currentPage === "snoos" &&

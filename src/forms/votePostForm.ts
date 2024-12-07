@@ -2,7 +2,7 @@ import {Context, Devvit, Form, FormFunction, FormKey, FormOnSubmitEvent, FormOnS
 import {getSnooVoteDraft} from "../utils/snooVoteDraft.js";
 import {setPostSnooVote, storeSnooVote} from "../utils/snooVote.js";
 import {votePostForm as votePostFormKey} from "../main.js";
-import {CustomPostPreview} from "../customPost/components/preview.js";
+import {BasicPreview} from "../customPost/components/basicPreview.js";
 
 type VotePostFormSubmitData = {
     postTitle?: string;
@@ -56,7 +56,7 @@ const formHandler: FormOnSubmitEventHandler<VotePostFormSubmitData> = async (eve
                 const newPost = await context.reddit.submitPost({
                     title: event.values.postTitle as string,
                     subredditName: (await context.reddit.getCurrentSubreddit()).name,
-                    preview: CustomPostPreview,
+                    preview: BasicPreview,
                     textFallback: {text: "The platform you're using doesn't support custom posts. Please use Shreddit or an up to date app to view this post."},
                 });
                 await setPostSnooVote(context.redis, newPost.id, draft.id);

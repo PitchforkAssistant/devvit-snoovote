@@ -5,6 +5,8 @@ export type AppSettings = {
     redisSaveIntervalMs: number;
     heartbeatIntervalMs: number;
     inactiveTimeoutMs: number;
+    discordUrl: string;
+    moreUrl: string;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -12,6 +14,8 @@ export const defaultAppSettings: AppSettings = {
     redisSaveIntervalMs: 10000,
     heartbeatIntervalMs: 1000,
     inactiveTimeoutMs: 60000,
+    discordUrl: "https://discord.gg/HKMxwCfbrN",
+    moreUrl: "https://sh.reddit.com/r/ModWorldDevvit/comments/1h5zwsw/devvit_app_showcase/",
 };
 
 export async function getAppSettings (settings: SettingsClient): Promise<AppSettings> {
@@ -22,6 +26,8 @@ export async function getAppSettings (settings: SettingsClient): Promise<AppSett
         redisSaveIntervalMs: typeof allSettings.redisSaveIntervalMs === "number" ? allSettings.redisSaveIntervalMs : defaultAppSettings.redisSaveIntervalMs,
         heartbeatIntervalMs: typeof allSettings.heartbeatIntervalMs === "number" ? allSettings.heartbeatIntervalMs : defaultAppSettings.heartbeatIntervalMs,
         inactiveTimeoutMs: typeof allSettings.inactiveTimeoutMs === "number" ? allSettings.inactiveTimeoutMs : defaultAppSettings.inactiveTimeoutMs,
+        discordUrl: typeof allSettings.discordUrl === "string" ? allSettings.discordUrl : defaultAppSettings.discordUrl,
+        moreUrl: typeof allSettings.moreUrl === "string" ? allSettings.moreUrl : defaultAppSettings.moreUrl,
     };
 }
 
@@ -54,5 +60,19 @@ export const devvitAppSettings = Devvit.addSettings([
         label: "Inactive Snoo Timeout",
         helpText: "If a Snoo has not sent a heartbeat packet in this many milliseconds, it will be considered inactive.",
         defaultValue: defaultAppSettings.inactiveTimeoutMs,
+    },
+    {
+        type: "string",
+        name: "discordUrl",
+        label: "Discord URL",
+        helpText: "This is used as the Discord link on the app help page.",
+        defaultValue: defaultAppSettings.discordUrl,
+    },
+    {
+        type: "string",
+        name: "moreUrl",
+        label: "More URL",
+        helpText: "This is used as the 'Check out the other demos!' link on the app help page.",
+        defaultValue: defaultAppSettings.moreUrl,
     },
 ]);

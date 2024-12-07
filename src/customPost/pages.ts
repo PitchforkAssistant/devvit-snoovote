@@ -4,6 +4,7 @@ import {CustomPostState} from "./postState.js";
 import {SnooPageState} from "./pages/snoos/snoosState.js";
 import {ManagerPage} from "./pages/manager/managerPage.js";
 import {ManagerPageState} from "./pages/manager/managerState.js";
+import {HelpPageState} from "./pages/help/helpState.js";
 
 export type PageName = "snoos" | "help" | "manager";
 
@@ -26,7 +27,7 @@ export const Page = ({state}: PageProps) => Pages[state.currentPage](state);
 export const PageStateTypes = {
     snoos: SnooPageState,
     manager: ManagerPageState,
-    help: undefined,
+    help: HelpPageState,
 };
 
 export type PageStateList = {
