@@ -8,6 +8,8 @@ import {Coords, Area, equalCoords} from "../../../utils/coords.js";
 import {getPersistentSnoos, SnooWorld, storePersistentSnoo} from "../../../utils/snooWorld.js";
 import {AppSettings, defaultAppSettings, getAppSettings} from "../../../settings.js";
 
+export const channelPrefix = "snooPageChannel";
+
 export const StepSize: Coords = {x: 5, y: 5, z: 5};
 export const WorldBounds: Area = {
     min: {x: 0, y: 0, z: 0},
@@ -39,7 +41,8 @@ export type SnooPagePacket = {
 export class SnooPageState {
     public context: Context;
 
-    readonly _world: UseStateResult<SnooWorld>;
+    readonly _mySnoo: UseStateResult<SnoovatarData | null>;
+    readonly _liveWorld: UseStateResult<SnooWorld>;
     readonly _selfLoaded: UseStateResult<boolean>;
     readonly _observer: UseStateResult<boolean>;
     readonly _refresh: UseStateResult<number>;
@@ -60,20 +63,19 @@ export class SnooPageState {
     constructor (readonly postState: CustomPostState) {
         this.context = postState.context;
 
-        this._world = useState<SnooWorld>(() => {
+        this._mySnoo = useState<SnoovatarData | null>(() => {
             if (postState.currentUserId) {
                 return {
-                    [postState.currentUserId]: {
-                        id: postState.currentUserId,
-                        username: postState.currentUser?.username ?? "",
-                        snoovatar: postState.currentUser?.snoovatar ?? getBlankSnoovatarUrl(this.context.assets),
-                        position: getRandomSnooPosition(WorldBounds, StepSize),
-                        lastUpdate: Date.now(),
-                    },
+                    id: postState.currentUserId,
+                    username: postState.currentUser?.username ?? "",
+                    snoovatar: postState.currentUser?.snoovatar ?? getBlankSnoovatarUrl(this.context.assets),
+                    position: getRandomSnooPosition(WorldBounds, StepSize),
+                    lastUpdate: Date.now(),
                 };
             }
-            return {};
+            return null;
         });
+        this._liveWorld = useState<SnooWorld>(() => ({}));
         this._selfLoaded = useState<boolean>(false);
         this._observer = useState<boolean>(false);
         this._refresh = useState<number>(0);
@@ -91,7 +93,7 @@ export class SnooPageState {
             return null;
         });
         this._redisSave = useAsync<SnoovatarData | null>(async () => {
-            if (!this.mySnoovatar) {
+            if (!this.localSnoo) {
                 if (this.myLastSave) {
                     return this.myLastSave;
                 }
@@ -107,22 +109,22 @@ export class SnooPageState {
             }
 
             if (!this.myLastSave) {
-                await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
-                return this.mySnoovatar;
+                await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                return this.localSnoo;
             }
 
-            if (!equalCoords(this.mySnoovatar.position, this.myLastSave.position)) {
+            if (!equalCoords(this.localSnoo.position, this.myLastSave.position)) {
                 // only update at most once per x seconds
                 if (Date.now() - this.myLastSave.lastUpdate > this.appSettings.redisSaveIntervalMs) {
-                    await storePersistentSnoo(this.context.redis, this.worldId, this.mySnoovatar);
-                    return this.mySnoovatar;
+                    await storePersistentSnoo(this.context.redis, this.worldId, this.localSnoo);
+                    return this.localSnoo;
                 }
                 return this.myLastSave;
             } else {
                 // No need to update the redis save if the position hasn't changed.
                 return this.myLastSave;
             }
-        }, {depends: [this.mySnoovatar, this.refresher]});
+        }, {depends: [this.localSnoo, this.refresher]});
         this._owner = useAsync<boolean>(async () => {
             if (!this.postState.currentUserId || !this.currentVote?.id) {
                 return false;
@@ -140,7 +142,7 @@ export class SnooPageState {
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
         this._channel = useChannel<SnooPagePacket>({
-            name: `snooPageChannel${this.context.postId}`,
+            name: `${channelPrefix}${this.context.postId}`,
             onMessage: this.onChannelMessage,
             onSubscribed: this.onChannelSubscribed,
             onUnsubscribed: this.onChannelUnsubscribed,
@@ -150,26 +152,23 @@ export class SnooPageState {
     }
 
     get world (): SnooWorld {
-        return this._world[0];
+        return this._liveWorld[0];
     }
     set world (world: SnooWorld) {
-        this._world[1](world);
+        this._liveWorld[1](world);
     }
 
-    get mySnoovatar (): SnoovatarData | null {
-        if (this.postState.currentUser) {
+    get localSnoo (): SnoovatarData | null {
+        if (this.postState.currentUser && this._mySnoo[0]) {
             // We want to avoid setting state multiple times, so we'll use this to potentially
-            let newWorld: SnooWorld | null = null;
+            let newMe: SnoovatarData | null = null;
 
             // If the self ghost isn't loaded, see if the ghost world has loaded and update to the user's saved position
             if (this._ghostWorld && !this.isSelfLoaded && !this._ghostWorld.loading) {
                 if (this.ghostWorld[this.postState.currentUser.id]) {
-                    newWorld = {
-                        ...this.world,
-                        [this.postState.currentUser.id]: {
-                            ...this.world[this.postState.currentUser.id],
-                            position: this.ghostWorld[this.postState.currentUser.id].position,
-                        },
+                    newMe = {
+                        ...this._mySnoo[0],
+                        position: this.ghostWorld[this.postState.currentUser.id].position,
                     };
                 }
                 this.isSelfLoaded = true;
@@ -177,23 +176,24 @@ export class SnooPageState {
 
             // TODO: Possibly better integrate this with the this._selfLoaded state
             // If the user is missing a username and currentUser has finished loading, update the world
-            if (this.world[this.postState.currentUser.id] && !this.world[this.postState.currentUser.id].username) {
-                newWorld = {
-                    ...newWorld ?? this.world,
-                    [this.postState.currentUser.id]: {
-                        ...this.world[this.postState.currentUser.id],
-                        username: this.postState.currentUser.username,
-                        snoovatar: this.postState.currentUser.snoovatar,
-                    },
+            if (!this._mySnoo[0].username) {
+                newMe = {
+                    ...this._mySnoo[0],
+                    username: this.postState.currentUser.username,
+                    snoovatar: this.postState.currentUser.snoovatar,
                 };
             }
-            if (newWorld) {
-                this.world = newWorld;
+            if (newMe) {
+                this.localSnoo = newMe;
+                return newMe;
             }
-
-            return this.world[this.postState.currentUser.id];
+            return this._mySnoo[0];
         }
-        return null;
+        return this._mySnoo[0];
+    }
+
+    set localSnoo (snoo: SnoovatarData | null) {
+        this._mySnoo[1](snoo);
     }
 
     get isSelfLoaded (): boolean {
@@ -272,13 +272,20 @@ export class SnooPageState {
             };
         }
 
+        if (this.localSnoo) {
+            fullWorld = {
+                ...fullWorld,
+                [this.localSnoo.id]: this.localSnoo,
+            };
+        }
+
         let unsortedWorld = Object.values(fullWorld);
         if (!this.showInactive) {
             const now = Date.now();
-            unsortedWorld = unsortedWorld.filter(snoovatar => now - snoovatar.lastUpdate < this.appSettings.inactiveTimeoutMs || snoovatar.id === this.mySnoovatar?.id);
+            unsortedWorld = unsortedWorld.filter(snoovatar => now - snoovatar.lastUpdate < this.appSettings.inactiveTimeoutMs || snoovatar.id === this.localSnoo?.id);
         }
 
-        return unsortedWorld.sort((a, b) => compareSnoos(a, b, this.mySnoovatar?.id));
+        return unsortedWorld.sort((a, b) => compareSnoos(a, b, this.localSnoo?.id));
     }
 
     get status (): ChannelStatus {
@@ -342,10 +349,10 @@ export class SnooPageState {
     };
 
     sendHeartbeat = async () => {
-        if (this.mySnoovatar) {
+        if (this.localSnoo) {
             await this.sendToChannel({
                 type: "heartbeat",
-                data: {...this.mySnoovatar, lastUpdate: Date.now()},
+                data: {...this.localSnoo, lastUpdate: Date.now()},
             });
         }
     };
@@ -355,46 +362,45 @@ export class SnooPageState {
     };
 
     moveSnoovatar = async (movement: Coords) => {
-        const mySnoovatar = this.mySnoovatar;
-        if (mySnoovatar) {
-            const currentPosition = this.world[mySnoovatar.id].position;
+        if (this.localSnoo) {
+            const currentPos = this.localSnoo.position;
 
             // Force position to be integers from 0 to 100
             const newPosition = {
-                x: Math.round(clamp(currentPosition.x + movement.x, WorldBounds.min.x, WorldBounds.max.x)),
-                y: Math.round(clamp(currentPosition.y + movement.y, WorldBounds.min.y, WorldBounds.max.y)),
-                z: Math.round(clamp(currentPosition.z + movement.z, WorldBounds.min.z, WorldBounds.max.z)),
+                x: Math.round(clamp(currentPos.x + movement.x, WorldBounds.min.x, WorldBounds.max.x)),
+                y: Math.round(clamp(currentPos.y + movement.y, WorldBounds.min.y, WorldBounds.max.y)),
+                z: Math.round(clamp(currentPos.z + movement.z, WorldBounds.min.z, WorldBounds.max.z)),
             };
 
             // Prevent moving if the new position is the same as the current position
-            const distance = Math.sqrt(Math.pow(newPosition.x - currentPosition.x, 2) +
-                Math.pow(newPosition.y - currentPosition.y, 2) +
-                Math.pow(newPosition.z - currentPosition.z, 2),);
+            const distance = Math.sqrt(Math.pow(newPosition.x - currentPos.x, 2) +
+                Math.pow(newPosition.y - currentPos.y, 2) +
+                Math.pow(newPosition.z - currentPos.z, 2),);
             if (distance < 1) {
                 return;
             }
 
-            // Note: Setting this.world and then sending this.world[mySnoovatar.id] to the channel will send the old position
-            const myNewSnoovatar = {
-                ...mySnoovatar,
+            const newSnoo: SnoovatarData = {
+                ...this.localSnoo,
                 position: newPosition,
                 lastUpdate: Date.now(),
             };
+            this.localSnoo = newSnoo;
 
-            this.world = {
-                ...this.world,
-                [mySnoovatar.id]: myNewSnoovatar,
-            };
             if (Object.values(this.world).length < this.appSettings.sendPosPacketMaxSnoos) {
                 await this.sendToChannel({
                     type: "position",
-                    data: myNewSnoovatar,
+                    data: newSnoo,
                 });
             }
         }
     };
 
     onPositionChange = (data: SnoovatarData) => {
+        if (data.id === this.localSnoo?.id) {
+            this.localSnoo = data;
+            return;
+        }
         this.world = {
             ...this.world,
             [data.id]: {
@@ -443,15 +449,15 @@ export class SnooPageState {
 
     onChannelSubscribed = async () => {
         this._heartbeat.start();
-        if (this.mySnoovatar) {
-            console.log(`${this.mySnoovatar.username} has subscribed to the ${this.context.postId} channel and environment ${JSON.stringify(this.context.uiEnvironment ?? {})}`);
+        if (this.localSnoo) {
+            console.log(`${this.localSnoo.username} has subscribed to the ${this.context.postId} channel and environment ${JSON.stringify(this.context.uiEnvironment ?? {})}`);
             await this.sendHeartbeat();
         }
     };
 
     onChannelUnsubscribed = async () => {
-        if (this.mySnoovatar) {
-            console.log(`${this.mySnoovatar.username} has unsubscribed from the ${this.context.postId} channel`);
+        if (this.localSnoo) {
+            console.log(`${this.localSnoo.username} has unsubscribed from the ${this.context.postId} channel`);
         }
     };
 
@@ -460,18 +466,15 @@ export class SnooPageState {
             this._channel.subscribe();
         }
 
-        if (!this.mySnoovatar) {
+        if (!this.localSnoo) {
             return;
         }
 
-        if (Date.now() - this.mySnoovatar.lastUpdate >= this.appSettings.heartbeatIntervalMs) {
+        if (Date.now() - this.localSnoo.lastUpdate >= this.appSettings.heartbeatIntervalMs) {
             // Set the last update locally
-            this.world = {
-                ...this.world,
-                [this.mySnoovatar.id]: {
-                    ...this.mySnoovatar,
-                    lastUpdate: Date.now(),
-                },
+            this.localSnoo = {
+                ...this.localSnoo,
+                lastUpdate: Date.now(),
             };
             await this.sendHeartbeat();
         }

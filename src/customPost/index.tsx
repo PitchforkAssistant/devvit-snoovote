@@ -15,7 +15,7 @@ export const snooVotePost = Devvit.addCustomPostType({
                     <Page state={state} />
                     {state.isDebug && <vstack alignment="start top" grow>
                         <text style="body" color="red">DEBUG MODE</text>
-                        <text>pos: {JSON.stringify(state.PageStates.snoos.mySnoovatar?.position)}</text>
+                        <text>pos: {JSON.stringify(state.PageStates.snoos.localSnoo?.position)}</text>
                         <text>status: {stringifyChannelStatus(state.PageStates.snoos.status)}</text>
                         <text>isOwner: {state.PageStates.snoos.isOwner}</text>
                         <text>isManager: {state.isManager}</text>
