@@ -8,7 +8,7 @@ import {Coords, Area, equalCoords} from "../../../utils/coords.js";
 import {getPersistentSnoos, SnooWorld, storePersistentSnoo} from "../../../utils/snooWorld.js";
 import {AppSettings, defaultAppSettings, getAppSettings} from "../../../settings.js";
 
-export const channelPrefix = "snooPageChannel";
+export const channelName = "snoovote";
 
 export const StepSize: Coords = {x: 5, y: 5, z: 5};
 export const WorldBounds: Area = {
@@ -23,6 +23,7 @@ export type UserPrefs = {
 export type SnooPagePacket = {
     sessionId: string;
     userId: string;
+    worldId: string;
 } & ({
     type: "position";
     data: SnoovatarData;
@@ -152,7 +153,7 @@ export class SnooPageState {
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
         this._channel = useChannel<SnooPagePacket>({
-            name: `${channelPrefix}${this.context.postId}`,
+            name: `${channelName}`,
             onMessage: this.onChannelMessage,
             onSubscribed: this.onChannelSubscribed,
             onUnsubscribed: this.onChannelUnsubscribed,
@@ -341,14 +342,15 @@ export class SnooPageState {
         }
     };
 
-    sendToChannel = async (message: Omit<SnooPagePacket, "sessionId" | "userId">) => {
-        if (!this.context.userId || !this.sessionId || this.isObserver) {
+    sendToChannel = async (message: Omit<SnooPagePacket, "sessionId" | "userId" | "worldId">) => {
+        if (!this.context.userId || !this.sessionId || this.isObserver || !this.worldId) {
             return;
         }
         const fullMessage: SnooPagePacket = {
             ...message,
             sessionId: this.sessionId,
             userId: this.context.userId,
+            worldId: this.worldId,
         } as SnooPagePacket;
         try {
             if (this._channel.status === ChannelStatus.Connected) {
@@ -428,7 +430,7 @@ export class SnooPageState {
     };
 
     onChannelMessage = (message: SnooPagePacket) => {
-        if (message.sessionId === this.sessionId) {
+        if (message.worldId !== this.worldId || message.sessionId === this.sessionId) {
             return;
         }
 
