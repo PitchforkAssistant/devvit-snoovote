@@ -153,7 +153,7 @@ export class SnooPageState {
         this._heartbeat = useInterval(this.onHeartbeatInterval, 1000);
 
         this._channel = useChannel<SnooPagePacket>({
-            name: `${channelName}`,
+            name: channelName,
             onMessage: this.onChannelMessage,
             onSubscribed: this.onChannelSubscribed,
             onUnsubscribed: this.onChannelUnsubscribed,
@@ -430,7 +430,11 @@ export class SnooPageState {
     };
 
     onChannelMessage = (message: SnooPagePacket) => {
-        if (message.worldId !== this.worldId || message.sessionId === this.sessionId) {
+        if (message.sessionId === this.sessionId) {
+            return;
+        }
+
+        if (message.worldId !== this.worldId && message.worldId !== "*") {
             return;
         }
 

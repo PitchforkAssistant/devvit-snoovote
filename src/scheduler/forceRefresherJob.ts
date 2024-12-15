@@ -1,7 +1,7 @@
 import {TriggerContext, ScheduledJobEvent, Devvit} from "@devvit/public-api";
 import {getAppSettings} from "../settings.js";
 import {votesAssociationKey} from "../utils/snooVote.js";
-import {channelPrefix, SnooPagePacket} from "../customPost/pages/snoos/snoosState.js";
+import {channelName, SnooPagePacket} from "../customPost/pages/snoos/snoosState.js";
 
 export async function onForceRefresherJob (event: ScheduledJobEvent<undefined>, context: TriggerContext) {
     const appSettings = await getAppSettings(context.settings);
@@ -23,11 +23,12 @@ export async function onForceRefresherJob (event: ScheduledJobEvent<undefined>, 
         try {
             const packet: SnooPagePacket = {
                 sessionId: "forceRefresherJob",
+                worldId: "*",
                 userId: "t2_qikfu",
                 type: "refresh",
                 data: Date.now(),
             };
-            await context.realtime.send(`${channelPrefix}${postId}`, packet);
+            await context.realtime.send(channelName, packet);
         } catch (e) {
             console.error(`Error updating preview for post ${postId}: ${String(e)}`);
         }
